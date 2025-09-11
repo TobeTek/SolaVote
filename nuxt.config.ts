@@ -2,7 +2,7 @@ export default defineNuxtConfig({
   ssr: false,
   runtimeConfig: {
     public: {
-      projectId: process.env.NUXT_PROJECT_ID
+      projectId: process.env.NUXT_REOWN_PROJECT_ID
     }
   },
   modules: [
