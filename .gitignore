@@ -1,3 +1,5 @@
+.ignored_node_modules
+node-compile-cache
 node_modules
 *.log
 .nuxt

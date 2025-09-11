@@ -1,5 +1,7 @@
 # Manage your Todos with Atidone ☑️
 
+Circom Circuits: https://github.com/vocdoni/z-ircuits
+
 A demonstration using [Nuxt](https://nuxt.com) with server-side rendering on the edge, authentication and database querying using [Cloudflare D1](https://developers.cloudflare.com/d1/) with [Drizzle ORM](https://orm.drizzle.team/).
 
 [![Deploy to NuxtHub](https://hub.nuxt.com/button.svg)](https://admin.hub.nuxt.com/new?template=todos)
