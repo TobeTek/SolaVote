@@ -1,4 +1,10 @@
 export default defineNuxtConfig({
+  ssr: false,
+  runtimeConfig: {
+    public: {
+      projectId: process.env.NUXT_PROJECT_ID
+    }
+  },
   modules: [
     '@nuxt/ui',
     '@nuxt/eslint',

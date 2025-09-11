@@ -1,6 +1,8 @@
 # Manage your Todos with Atidone ☑️
 
 Circom Circuits: https://github.com/vocdoni/z-ircuits
+- https://blog.o1labs.org/zero-knowledge-proofs-for-voting-3c6a6d5d89db
+- https://github.com/advaita-saha/zk-Voting
 
 A demonstration using [Nuxt](https://nuxt.com) with server-side rendering on the edge, authentication and database querying using [Cloudflare D1](https://developers.cloudflare.com/d1/) with [Drizzle ORM](https://orm.drizzle.team/).
 

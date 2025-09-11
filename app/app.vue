@@ -1,5 +1,28 @@
+<!-- @reown/appkit-adapter-solana/vue -->
 <script setup lang="ts">
 import type { DropdownMenuItem } from '#ui/types'
+import { SolanaAdapter } from '@reown/appkit-adapter-solana'
+import { createAppKit } from '@reown/appkit/vue'
+import { solana, solanaDevnet, solanaTestnet } from '@reown/appkit/networks'
+
+const config = useRuntimeConfig()
+const projectId = config.public.projectId
+
+const metadata = {
+  name: 'SolaVote AppKit Nuxt',
+  description: 'AppKit Nuxt Solana Example',
+  url: 'http://localhost:3000',
+  icons: ['https://avatars.githubusercontent.com/u/179229932'],
+}
+
+const solanaWeb3JsAdapter = new SolanaAdapter()
+
+createAppKit({
+  adapters: [solanaWeb3JsAdapter],
+  metadata,
+  networks: [solana, solanaTestnet, solanaDevnet],
+  projectId,
+})
 
 const { loggedIn, user, clear } = useUserSession()
 const colorMode = useColorMode()
@@ -12,13 +35,12 @@ watch(loggedIn, () => {
 
 const isDarkMode = computed({
   get: () => colorMode.preference === 'dark',
-  set: () =>
-    (colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark')
+  set: () => (colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'),
 })
 
 useHead({
   htmlAttrs: { lang: 'en' },
-  link: [{ rel: 'icon', href: '/icon.png' }]
+  link: [{ rel: 'icon', href: '/icon.png' }],
 })
 
 useSeoMeta({
@@ -28,7 +50,7 @@ useSeoMeta({
     'A Nuxt demo hosted with edge-side rendering, authentication and queyring a Cloudflare D1 database',
   ogImage: '/social-image.png',
   twitterImage: '/social-image.png',
-  twitterCard: 'summary_large_image'
+  twitterCard: 'summary_large_image',
 })
 
 const items = [
@@ -36,9 +58,9 @@ const items = [
     {
       label: 'Logout',
       icon: 'i-lucide-log-out',
-      onSelect: clear
-    }
-  ]
+      onSelect: clear,
+    },
+  ],
 ] satisfies DropdownMenuItem[][]
 </script>
 
@@ -62,9 +84,7 @@ const items = [
       <UCard variant="subtle">
         <template #header>
           <h3 class="text-lg font-semibold leading-6">
-            <NuxtLink to="/">
-              Atidone
-            </NuxtLink>
+            <NuxtLink to="/"> Atidone </NuxtLink>
           </h3>
           <UButton
             v-if="!loggedIn"
@@ -75,10 +95,7 @@ const items = [
             size="xs"
             external
           />
-          <div
-            v-else
-            class="flex flex-wrap -mx-2 sm:mx-0"
-          >
+          <div v-else class="flex flex-wrap -mx-2 sm:mx-0">
             <UButton
               to="/todos"
               icon="i-lucide-list"
@@ -93,15 +110,8 @@ const items = [
               :color="$route.path === '/optimistic-todos' ? 'primary' : 'neutral'"
               variant="ghost"
             />
-            <UDropdownMenu
-              v-if="user"
-              :items="items"
-            >
-              <UButton
-                color="neutral"
-                variant="ghost"
-                trailing-icon="i-lucide-chevron-down"
-              >
+            <UDropdownMenu v-if="user" :items="items">
+              <UButton color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down">
                 <UAvatar
                   :src="`https://github.com/${user.login}.png`"
                   :alt="user.login"
