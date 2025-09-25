@@ -343,7 +343,6 @@ describe('Private Election with Merkle Proofs', () => {
 
     // Start election with Merkle root
     const uint8Array = new Uint8Array(merkleRoot.buffer, merkleRoot.byteOffset, merkleRoot.length)
-    console.log('MerkleRoot: ', merkleRoot.toString(), uint8Array)
 
     await program.methods
       .startElection(uint8Array)

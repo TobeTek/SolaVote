@@ -4,6 +4,7 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
+  "packageManager": "pnpm@10.12.1",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@noble/hashes": "^2.0.1",
