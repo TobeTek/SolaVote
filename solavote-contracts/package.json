@@ -6,6 +6,7 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
+    "@noble/hashes": "^2.0.1",
     "chai-as-promised": "^8.0.2",
     "merkletreejs": "^0.6.0"
   },

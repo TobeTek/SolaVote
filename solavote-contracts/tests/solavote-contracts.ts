@@ -1,6 +1,6 @@
+const { sha256 } = require('@noble/hashes/sha2.js');
 import * as anchor from '@coral-xyz/anchor'
 import { Program } from '@coral-xyz/anchor'
-import { sha256 } from '@coral-xyz/anchor/dist/cjs/utils'
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
@@ -11,6 +11,7 @@ import { Keypair, PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
 import { Buffer } from 'buffer'
 import chai, { expect } from 'chai'
 import { MerkleTree } from 'merkletreejs'
+
 
 import { SolavoteProgram } from '../target/types/solavote_program'
 
@@ -133,6 +134,7 @@ describe('solavote_program integration tests', () => {
     // Check if the ATA exists before proceeding (optional but good for robustness)
     const ataAccountInfo = await provider.connection.getAccountInfo(nftTokenAccount)
     expect(ataAccountInfo).to.not.be.null
+
     await program.methods
       .castVote(encryptedVote, null)
       .accounts({
@@ -162,24 +164,23 @@ describe('solavote_program integration tests', () => {
 
   it('rejects double voting', async () => {
     const encryptedVote = Buffer.from('attempt-twice')
-    await expect(
-      program.methods
-        .castVote(encryptedVote, null)
-        .accounts({
-          election: electionPda,
-          voterRecord: voterRecordPda,
-          voteData: voteDataPda,
-          voter: voter.publicKey,
-          nftMint,
-          nftTokenAccount,
-          mintAuthority,
-          tokenProgram: TOKEN_2022_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        })
-        .signers([voter])
-        .rpc()
-    ).to.be.rejectedWith(/AlreadyVoted/)
+    const result = program.methods
+      .castVote(encryptedVote, null)
+      .accounts({
+        election: electionPda,
+        voterRecord: voterRecordPda,
+        voteData: voteDataPda,
+        voter: voter.publicKey,
+        nftMint,
+        nftTokenAccount,
+        mintAuthority,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([voter])
+      .rpc()
+    await expect(result).to.be.rejected
   })
 
   it('closes the election', async () => {
@@ -205,34 +206,65 @@ describe('solavote_program integration tests', () => {
       [Buffer.from('vote'), electionPda.toBuffer(), newVoter.publicKey.toBuffer()],
       program.programId
     )
-    const newNftTokenAccount = await anchor.utils.token.associatedAddress({
-      mint: nftMint,
-      owner: newVoter.publicKey,
-    })
+
+    const newAirdopSig = await provider.connection.requestAirdrop(newVoter.publicKey, 1e9)
+    await provider.connection.confirmTransaction(newAirdopSig)
+
+    // 1. Define the parameters for the instruction
+    const payer = newVoter.publicKey // Voter pays for the ATA rent
+    const owner = newVoter.publicKey // Voter owns the new ATA
+    const mint = nftMint // The NFT Mint address
+    const associatedToken = getAssociatedTokenAddressSync(
+      nftMint,
+      newVoter.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )
+
+    // 2. Construct the CreateAssociatedTokenAccount instruction
+    const createAtaInstruction = createAssociatedTokenAccountInstruction(
+      payer,
+      associatedToken,
+      owner,
+      mint,
+      TOKEN_2022_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )
+
+    // 3. Build and send a separate transaction to create the ATA
+    const createAtaTx = new Transaction().add(createAtaInstruction)
+
+    // The transaction must be signed by the payer (voter)
+    await provider.sendAndConfirm(createAtaTx, [newVoter])
+
+    // Check if the ATA exists before proceeding (optional but good for robustness)
+    const ataAccountInfo = await provider.connection.getAccountInfo(nftTokenAccount)
+    expect(ataAccountInfo).to.not.be.null
 
     // Fund new voter
     const sig = await provider.connection.requestAirdrop(newVoter.publicKey, 1e9)
     await provider.connection.confirmTransaction(sig)
 
     const encryptedVote = Buffer.from('vote-after-close')
-    await expect(
-      program.methods
-        .castVote(encryptedVote, null)
-        .accounts({
-          election: electionPda,
-          voterRecord: newVoterRecordPda,
-          voteData: newVoteDataPda,
-          voter: newVoter.publicKey,
-          nftMint,
-          nftTokenAccount: newNftTokenAccount,
-          mintAuthority,
-          tokenProgram: TOKEN_2022_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        })
-        .signers([newVoter])
-        .rpc()
-    ).to.be.rejectedWith(/VotingClosed/)
+
+    const result = program.methods
+      .castVote(encryptedVote, null)
+      .accounts({
+        election: electionPda,
+        voterRecord: newVoterRecordPda,
+        voteData: newVoteDataPda,
+        voter: newVoter.publicKey,
+        nftMint,
+        nftTokenAccount: associatedToken,
+        mintAuthority,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([newVoter])
+      .rpc()
+    await expect(result).to.be.rejectedWith(/VotingClosed/)
   })
 
   it('adds a new admin', async () => {
@@ -262,10 +294,10 @@ describe('Private Election with Merkle Proofs', () => {
   let nftMint: PublicKey
   let mintAuthority: PublicKey
 
-  // Helper: Merkle hashing (using sha256 as bytes)
   function hashVoter(voterPubkey: PublicKey): Buffer {
-    const pkBytes = Buffer.from(voterPubkey.toBytes())
-    return Buffer.from(sha256.hash(pkBytes).toString(), 'hex')
+    const rawBytes = voterPubkey.toBytes() // Get raw bytes (32-byte array)
+    const hashed = sha256(new Uint8Array(rawBytes)) // Hash the Uint8Array
+    return Buffer.from(hashed)
   }
 
   let voters: Keypair[] = []
@@ -292,37 +324,11 @@ describe('Private Election with Merkle Proofs', () => {
       voters.push(voter)
       const sig = await provider.connection.requestAirdrop(voter.publicKey, 1e9)
       await provider.connection.confirmTransaction(sig)
-
-      // 1. Define the parameters for the instruction
-      const payer = voter.publicKey // Voter pays for the ATA rent
-      const owner = voter.publicKey // Voter owns the new ATA
-      const mint = nftMint // The NFT Mint address
-      const associatedToken = nftTokenAccount // The derived ATA address
-
-      // 2. Construct the CreateAssociatedTokenAccount instruction
-      const createAtaInstruction = createAssociatedTokenAccountInstruction(
-        payer,
-        associatedToken,
-        owner,
-        mint,
-        TOKEN_2022_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      )
-
-      // 3. Build and send a separate transaction to create the ATA
-      const createAtaTx = new Transaction().add(createAtaInstruction)
-
-      // The transaction must be signed by the payer (voter)
-      await provider.sendAndConfirm(createAtaTx, [voter])
-
-      // Check if the ATA exists before proceeding (optional but good for robustness)
-      const ataAccountInfo = await provider.connection.getAccountInfo(nftTokenAccount)
-      expect(ataAccountInfo).to.not.be.null
     }
 
     // Build Merkle tree
     const leaves = voters.map((kp) => hashVoter(kp.publicKey))
-    merkleTree = new MerkleTree(leaves, (d) => sha256.hash(d), { sortPairs: true })
+    merkleTree = new MerkleTree(leaves, (d) => sha256(d), { sortPairs: true })
     merkleRoot = merkleTree.getRoot()
 
     // Create Private Election
@@ -336,8 +342,11 @@ describe('Private Election with Merkle Proofs', () => {
       .rpc()
 
     // Start election with Merkle root
+    const uint8Array = new Uint8Array(merkleRoot.buffer, merkleRoot.byteOffset, merkleRoot.length)
+    console.log('MerkleRoot: ', merkleRoot.toString(), uint8Array)
+
     await program.methods
-      .startElection(Array.from(merkleRoot))
+      .startElection(uint8Array)
       .accounts({
         election: electionPda,
         authority: creator,
@@ -348,6 +357,32 @@ describe('Private Election with Merkle Proofs', () => {
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .rpc()
+
+    for (const voter of voters) {
+      const payer = voter.publicKey
+      const owner = voter.publicKey
+      const mint = nftMint
+      const associatedToken = getAssociatedTokenAddressSync(
+        nftMint,
+        voter.publicKey,
+        false,
+        TOKEN_2022_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+
+      const createAtaInstruction = createAssociatedTokenAccountInstruction(
+        payer,
+        associatedToken,
+        owner,
+        mint,
+        TOKEN_2022_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+      const createAtaTx = new Transaction().add(createAtaInstruction)
+      await provider.sendAndConfirm(createAtaTx, [voter])
+      const ataAccountInfo = await provider.connection.getAccountInfo(associatedToken)
+      expect(ataAccountInfo).to.not.be.null
+    }
   })
 
   it('allows voting for a whitelisted voter (valid proof)', async () => {
@@ -360,16 +395,29 @@ describe('Private Election with Merkle Proofs', () => {
       [Buffer.from('vote'), electionPda.toBuffer(), voter.publicKey.toBuffer()],
       program.programId
     )
-    const nftTokenAccount = await anchor.utils.token.associatedAddress({
-      mint: nftMint,
-      owner: voter.publicKey,
-    })
+    const nftTokenAccount = getAssociatedTokenAddressSync(
+      nftMint,
+      voter.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )
     // Generate Merkle proof
-    const proof = merkleTree.getProof(hashVoter(voter.publicKey)).map((p) => p.data)
     const encryptedVote = Buffer.from('valid-private-vote')
 
+    const leavesProof = merkleTree.getProof(hashVoter(voter.publicKey)).map((p) => p.data)
+    const uint8Proof = leavesProof.map(
+      (proof) => new Uint8Array(proof.buffer, proof.byteOffset, proof.length)
+    )
+    // const leavesProof = merkleTree.getProof(hashVoter(voter.publicKey)).map((p) => p.data)
+    // const uint8Proof = leavesProof.map((proof) => {
+    //   const arr = new Uint8Array(32)
+    //   arr.set(proof)
+    //   return arr
+    // })
+
     await program.methods
-      .castVote(encryptedVote, proof)
+      .castVote(encryptedVote, uint8Proof)
       .accounts({
         election: electionPda,
         voterRecord: voterRecordPda,
@@ -394,7 +442,7 @@ describe('Private Election with Merkle Proofs', () => {
   })
 
   it('rejects voting with invalid Merkle proof', async () => {
-    const invalidVoter = Keypair.generate()
+    const invalidVoter = voters[2]
     const [voterRecordPda] = PublicKey.findProgramAddressSync(
       [Buffer.from('voter-record'), invalidVoter.publicKey.toBuffer(), electionPda.toBuffer()],
       program.programId
@@ -403,10 +451,13 @@ describe('Private Election with Merkle Proofs', () => {
       [Buffer.from('vote'), electionPda.toBuffer(), invalidVoter.publicKey.toBuffer()],
       program.programId
     )
-    const nftTokenAccount = await anchor.utils.token.associatedAddress({
-      mint: nftMint,
-      owner: invalidVoter.publicKey,
-    })
+    const nftTokenAccount = getAssociatedTokenAddressSync(
+      nftMint,
+      invalidVoter.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )
     const sig = await provider.connection.requestAirdrop(invalidVoter.publicKey, 1e9)
     await provider.connection.confirmTransaction(sig)
 

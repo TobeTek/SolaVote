@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_2022;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use merkle_proof::verify_merkle_proof;
+use sha2::{Digest, Sha256};
 
 declare_id!("Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6");
 
@@ -60,9 +61,13 @@ pub mod solavote_program {
 
         if election.is_private {
             let proof = merkle_proof.ok_or(VotingError::ProofRequired)?;
-            let voter_key_bytes = ctx.accounts.voter.key().to_bytes();
+
+            let mut hasher = Sha256::new();
+            hasher.update(ctx.accounts.voter.key().to_bytes());
+            let result = hasher.finalize();
+            let leaf = result.as_slice().try_into();
             let verified =
-                verify_merkle_proof(&voter_key_bytes, &election.merkle_root.unwrap(), &proof);
+                verify_merkle_proof(leaf.unwrap(), &election.merkle_root.unwrap(), &proof);
             require!(verified, VotingError::ProofInvalid);
         }
 
@@ -88,11 +93,7 @@ pub mod solavote_program {
 
         // Use the mint authority PDA's seeds for signing the CPI
         let binding = election.key();
-        let mint_seeds = &[
-            b"nft-mint",
-            binding.as_ref(),
-            &[ctx.bumps.nft_mint],
-        ];
+        let mint_seeds = &[b"nft-mint", binding.as_ref(), &[ctx.bumps.nft_mint]];
         let mint_signer_seeds = &[mint_seeds as &[&[u8]]];
         let cpi_accounts = token_2022::MintTo {
             mint: ctx.accounts.nft_mint.to_account_info(),
