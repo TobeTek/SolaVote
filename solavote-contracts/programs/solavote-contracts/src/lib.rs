@@ -66,13 +66,16 @@ pub mod solavote_program {
             require!(verified, VotingError::ProofInvalid);
         }
 
+        voter_record.election = election.key();
+        voter_record.voter = *ctx.accounts.voter.key;
+        voter_record.has_voted = true;
+        voter_record.bump = ctx.bumps.voter_record;
+
         let vote_data = &mut ctx.accounts.vote_data;
         vote_data.election = election.key();
         vote_data.voter = *ctx.accounts.voter.key;
         vote_data.encrypted_vote = encrypted_vote;
         vote_data.bump = ctx.bumps.vote_data;
-
-        voter_record.has_voted = true;
 
         // Mint NFT as proof of voting; assumes NFT token account (ATA) exists for user
         let election_seeds = &[
@@ -81,17 +84,26 @@ pub mod solavote_program {
             election.title.as_bytes(),
             &[election.bump],
         ];
-        let signer_seeds = &[&election_seeds[..]];
+        // let signer_seeds = &[&election_seeds[..]];
 
+        // Use the mint authority PDA's seeds for signing the CPI
+        let binding = election.key();
+        let mint_seeds = &[
+            b"nft-mint",
+            binding.as_ref(),
+            &[ctx.bumps.nft_mint],
+        ];
+        let mint_signer_seeds = &[mint_seeds as &[&[u8]]];
         let cpi_accounts = token_2022::MintTo {
             mint: ctx.accounts.nft_mint.to_account_info(),
             to: ctx.accounts.nft_token_account.to_account_info(),
             authority: ctx.accounts.mint_authority.to_account_info(),
         };
+
         let cpi_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             cpi_accounts,
-            signer_seeds,
+            mint_signer_seeds,
         );
 
         token_2022::mint_to(cpi_ctx, 1)?;
@@ -170,25 +182,63 @@ pub struct CreateElection<'info> {
 pub struct StartElection<'info> {
     #[account(mut, has_one = authority)]
     pub election: Account<'info, Election>,
+    #[account(mut)]
     pub authority: Signer<'info>,
+    #[account(
+        init,
+        payer = authority,
+        mint::decimals = 0,
+        mint::authority = nft_mint,
+        seeds = [b"nft-mint", election.key().as_ref()],
+        bump,
+    )]
+    pub nft_mint: InterfaceAccount<'info, Mint>,
+
+    /// CHECK: This PDA's address is used as the mint authority in the mint::authority constraint above.
+    /// It is deterministically derived from the election key, and is not read from or written to directly.
+    #[account(
+        seeds = [b"nft-mint", election.key().as_ref()], 
+        bump,
+    )]
+    pub mint_authority: AccountInfo<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
 pub struct CastVote<'info> {
     #[account(mut)]
     pub election: Account<'info, Election>,
-    #[account(mut, has_one = voter)]
+    #[account(
+        init,
+        payer = voter,
+        space = 8 + VoterRecord::MAX_SIZE,
+        seeds = [b"voter-record", voter.key().as_ref(), election.key().as_ref()],
+        bump
+    )]
     pub voter_record: Account<'info, VoterRecord>,
     #[account(init, payer = voter, space = 8 + VoteData::MAX_SIZE, seeds = [b"vote", election.key().as_ref(), voter.key().as_ref()], bump)]
     pub vote_data: Account<'info, VoteData>,
     #[account(mut)]
     pub voter: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"nft-mint", election.key().as_ref()],
+        bump,
+    )]
     pub nft_mint: InterfaceAccount<'info, Mint>,
+
     #[account(mut)]
     pub nft_token_account: InterfaceAccount<'info, TokenAccount>,
-    /// CHECK: PDA mint authority
+
+    /// CHECK: This PDA's address is used as the mint authority in the mint::authority constraint above.
+    /// It is deterministically derived from the election key, and is not read from or written to directly.
+    #[account(mut,
+        seeds = [b"nft-mint", election.key().as_ref()], 
+        bump,
+    )]
     pub mint_authority: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
