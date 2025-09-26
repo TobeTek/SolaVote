@@ -43,4 +43,11 @@ export default defineNuxtConfig({
       },
     },
   },
+  //  vite: {
+  //   build: {
+  //     rollupOptions: {
+  //       external: ['valtio', 'react', 'react-dom'],
+  //     },
+  //   },
+  // },
 })

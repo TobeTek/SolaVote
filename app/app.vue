@@ -121,7 +121,7 @@ const items = [
             @click="handleWalletButtonClick"
             class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-newspaper"
-            to="/vote-elections"
+            to="/vote-election"
             v-if="address"
           >
             Vote
@@ -171,7 +171,7 @@ html {
 }
 
 .bg-noise {
-  background-image: url('background.png');
+  background-image: url('/background.png');
   background-size: cover;
 }
 
