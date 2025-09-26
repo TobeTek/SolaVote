@@ -27,6 +27,7 @@ export default defineNuxtConfig({
   hub: {
     database: true,
     blob: true,
+    ai: true,
   },
   nitro: {
     experimental: {

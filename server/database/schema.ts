@@ -30,10 +30,12 @@ export const elections = sqliteTable('elections', {
       }[]
     >()
     .notNull(),
-  merkleTree: text('merkle_tree', { mode: 'json' }).$type<{
-    root: string
-    leaves: string[]
-    layers: string[][]
-  }>(), // Store entire Merkle tree
+  merkleTree: text('merkle_tree', { mode: 'json' })
+    .$type<{
+      root: string
+      leaves: string[]
+      layers: string[][]
+    }>()
+    .default({ root: '', leaves: [], layers: [] }), // Store entire Merkle tree
   createdAt: integer('created_at', { mode: 'timestamp' }).default(new Date()),
 })

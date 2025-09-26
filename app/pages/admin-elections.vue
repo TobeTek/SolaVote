@@ -140,6 +140,8 @@ const toggleElectionStatus = async (election: Election) => {
         startTime: new Date(updated.startTime).getTime(),
         endTime: new Date(updated.endTime).getTime(),
       }
+
+      selectedElection.value =  {...selectedElection.value, ...updated,}
     }
   } catch (error) {
     console.error('Failed to toggle election status:', error)

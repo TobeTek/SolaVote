@@ -112,7 +112,7 @@ const items = [
           <UButton
             class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-list"
-            to="admin-elections"
+            to="/admin-elections"
             v-if="address"
           >
             My Elections
@@ -121,7 +121,7 @@ const items = [
             @click="handleWalletButtonClick"
             class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-newspaper"
-            to="vote-elections"
+            to="/vote-elections"
             v-if="address"
           >
             Vote
@@ -154,7 +154,7 @@ const items = [
       <NuxtPage />
 
       <footer class="mt-auto py-4 text-center text-[#6BA392] text-sm select-none">
-        © 2025 SolaVote — built with ❤️ by Atinux
+        © 2025 SolaVote — built with ❤️ by TobeTek
       </footer>
     </UContainer>
   </UApp>

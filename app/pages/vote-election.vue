@@ -1,23 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { useAppKitAccount } from '@reown/appkit/vue'
 import {
-  Calendar,
-  Lock,
-  User,
-  Clock,
-  Upload,
-  Check,
-  X,
   ArrowLeft,
+  Calendar,
   CheckCircle,
-  Fingerprint,
-  Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Fingerprint,
+  Lock,
+  Search,
+  Upload,
+  User,
+  X
 } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
 import { encryptVote } from '~/utils/crypto'
-import { useAppKitAccount } from '@reown/appkit/vue'
 
 // Types
 interface Election {
@@ -44,12 +42,11 @@ const filteredElections = ref<Election[]>([])
 const selectedElection = ref<Election | null>(null)
 const isDragging = ref(false)
 const idCardFile = ref<File | null>(null)
+const idVerificationText = ref('')
 const idVerificationStatus = ref<'idle' | 'loading' | 'approved' | 'rejected'>('idle')
 const voteSubmissionStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
 const selectedCandidate = ref<string | null>(null)
-const userAddress = ref<string>('') // Would come from wallet connection in real app
 const merkleProof = ref<string[] | null>(null)
-const isVerified = ref<boolean | null>(null)
 const searchQuery = ref('')
 const showPrivate = ref(true)
 const showPublic = ref(true)
@@ -73,7 +70,7 @@ const isElectionActive = (election: Election) => {
   const now = new Date()
   const start = new Date(election.startTime)
   const end = new Date(election.endTime)
-  return election.isActive && now >= start && now <= end
+  return election.isActive
 }
 
 const filteredAndPaginatedElections = computed(() => {
@@ -138,7 +135,7 @@ const fetchElections = async () => {
 const fetchElectionDetails = async (id: string) => {
   try {
     selectedElection.value = await $fetch(`/api/elections/${id}`)
-    if (selectedElection.value.isPrivate && userAddress.value) {
+    if (selectedElection.value.isPrivate && appKitAccount.value?.address) {
       await fetchMerkleProof()
     }
   } catch (error) {
@@ -147,13 +144,13 @@ const fetchElectionDetails = async (id: string) => {
 }
 
 const fetchMerkleProof = async () => {
-  if (!selectedElection.value?.isPrivate || !userAddress.value) return
+  if (!selectedElection.value?.isPrivate || !appKitAccount.value?.address) return
 
   try {
     idVerificationStatus.value = 'loading'
     const { proof } = await $fetch(`/api/elections/${selectedElection.value.id}/proof`, {
       method: 'POST',
-      body: { address: userAddress.value },
+      body: { address: appKitAccount.value?.address },
     })
     merkleProof.value = proof
     idVerificationStatus.value = 'idle'
@@ -166,17 +163,19 @@ const fetchMerkleProof = async () => {
 const verifyIDCard = async () => {
   if (!idCardFile.value || !selectedElection.value) return
   idVerificationStatus.value = 'loading'
+  idVerificationText.value = ''
   try {
     const formData = new FormData()
     formData.append('idCard', idCardFile.value)
     formData.append('electionId', selectedElection.value.id)
 
-    const result = await $fetch('/api/verify-id', {
+    const result = await $fetch(`/api/elections/${selectedElection.value.id}/verify`, {
       method: 'POST',
       body: formData,
     })
 
     idVerificationStatus.value = result.approved ? 'approved' : 'rejected'
+    idVerificationText.value = result.analysis
   } catch (error) {
     console.error('ID verification failed:', error)
     idVerificationStatus.value = 'rejected'
@@ -184,13 +183,13 @@ const verifyIDCard = async () => {
 }
 
 const submitVote = async () => {
-  if (!selectedCandidate.value || !selectedElection.value || !userAddress.value) return
+  if (!selectedCandidate.value || !selectedElection.value || !appKitAccount.value?.address) return
   voteSubmissionStatus.value = 'loading'
   try {
     const encryptedVote = encryptVote(
       JSON.stringify({
         candidate: selectedCandidate.value,
-        voter: userAddress.value,
+        voter: appKitAccount.value?.address,
         timestamp: new Date().toISOString(),
       }),
       selectedElection.value.publicKey
@@ -201,7 +200,7 @@ const submitVote = async () => {
       body: {
         electionId: selectedElection.value.id,
         encryptedVote,
-        voterAddress: userAddress.value,
+        voterAddress: appKitAccount.value?.address,
         merkleProof: merkleProof.value,
       },
     })
@@ -429,7 +428,7 @@ watch([searchQuery, showPrivate, showPublic], () => {
         <h2 class="text-xl font-bold mb-6 text-white">Whitelist Verification</h2>
 
         <div
-          v-if="!userAddress"
+          v-if="!appKitAccount.value?.address"
           class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-4"
         >
           <p class="text-yellow-400 text-center">
@@ -459,6 +458,8 @@ watch([searchQuery, showPrivate, showPublic], () => {
                       ? 'Verified: You are whitelisted!'
                       : 'Not verified'
                   }}
+                  <br />
+                  {{ idVerificationText }}
                 </span>
               </div>
             </div>
