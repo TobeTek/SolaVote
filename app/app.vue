@@ -1,22 +1,40 @@
-<!-- @reown/appkit-adapter-solana/vue -->
 <script setup lang="ts">
 import type { DropdownMenuItem } from '#ui/types'
 import { SolanaAdapter } from '@reown/appkit-adapter-solana'
-import { createAppKit } from '@reown/appkit/vue'
+import { useAppKitConnection, type Provider } from '@reown/appkit-adapter-solana/vue'
 import { solana, solanaDevnet, solanaTestnet } from '@reown/appkit/networks'
+import { createAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/vue'
+import { computed, watch } from 'vue'
+
+const address = useAppKitAccount({ namespace: 'solana' })
+const { connection } = useAppKitConnection()
+const { walletProvider } = useAppKitProvider<Provider>('solana')
+
+// function handleWalletButtonClick() {
+//   if (!!address) {
+//     openAccountModal()
+//   } else {
+//     openConnectModal()
+//   }
+// }
+
+// function openConnectModal() {
+//   open({ view: 'Connect' })
+// }
+
+// function openAccountModal() {
+//   open({ view: 'Account' })
+// }
 
 const config = useRuntimeConfig()
 const projectId = config.public.projectId
-
 const metadata = {
-  name: 'SolaVote AppKit Nuxt',
-  description: 'AppKit Nuxt Solana Example',
-  url: 'http://localhost:3000',
+  name: 'SolaVote',
+  description: 'Blockchain-powered voting platform',
+  url: 'https://solavote.example',
   icons: ['https://avatars.githubusercontent.com/u/179229932'],
 }
-
 const solanaWeb3JsAdapter = new SolanaAdapter()
-
 createAppKit({
   adapters: [solanaWeb3JsAdapter],
   metadata,
@@ -26,31 +44,38 @@ createAppKit({
 
 const { loggedIn, user, clear } = useUserSession()
 const colorMode = useColorMode()
-
-watch(loggedIn, () => {
-  if (!loggedIn.value) {
-    navigateTo('/')
-  }
+watch(loggedIn, (isLoggedIn) => {
+  if (!isLoggedIn) navigateTo('/')
 })
 
 const isDarkMode = computed({
   get: () => colorMode.preference === 'dark',
-  set: () => (colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'),
+  set: (v) => (colorMode.preference = v ? 'dark' : 'light'),
+})
+
+const userSession = useUserSession()
+watch(address, async (newAddress) => {
+  if (!newAddress || address.value === newAddress) {
+    return
+  }
+  await $fetch('/api/auth/wallet', {
+    method: 'POST',
+    body: {
+      walletAddress: newAddress,
+    },
+  })
 })
 
 useHead({
   htmlAttrs: { lang: 'en' },
-  link: [{ rel: 'icon', href: '/icon.png' }],
-})
-
-useSeoMeta({
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-  title: 'Atidone',
-  description:
-    'A Nuxt demo hosted with edge-side rendering, authentication and queyring a Cloudflare D1 database',
-  ogImage: '/social-image.png',
-  twitterImage: '/social-image.png',
-  twitterCard: 'summary_large_image',
+  link: [
+    { rel: 'icon', href: '/icon.png' },
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    {
+      rel: 'stylesheet',
+      href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;700&display=swap',
+    },
+  ],
 })
 
 const items = [
@@ -65,89 +90,92 @@ const items = [
 </script>
 
 <template>
-  <UApp>
-    <UContainer class="min-h-screen flex flex-col my-4">
-      <div class="mb-2 text-right">
-        <UButton
-          square
-          variant="ghost"
-          color="neutral"
-          :icon="
-            $colorMode.preference === 'dark' || $colorMode.preference === 'system'
-              ? 'i-lucide-moon'
-              : 'i-lucide-sun'
-          "
-          @click="isDarkMode = !isDarkMode"
-        />
-      </div>
+  <UApp class="bg-gradient-to-br from-[#0A243A] to-[#1E88A8] text-white min-h-screen font-manrope">
+    <!-- Textured background overlay -->
+    <div class="fixed inset-0 bg-noise opacity-35 pointer-events-none"></div>
 
-      <UCard variant="subtle">
-        <template #header>
-          <h3 class="text-lg font-semibold leading-6">
-            <NuxtLink to="/"> Atidone </NuxtLink>
-          </h3>
+    <UContainer class="w-fit max-w-screen min-h-screen flex flex-col my-4">
+      <header
+        class="mx-auto w-fit flex justify-between items-center mb-6 px-4 py-2 border-b border-[#1A3A47] bg-[#0A243A]/80 backdrop-blur-lg rounded-sm"
+      >
+        <NuxtLink
+          to="/"
+          class="text-4xl font-bold bg-gradient-to-r from-[#6BA392] to-[#1E88A8] bg-clip-text text-transparent"
+          style="letter-spacing: -1px; padding-right: 10px"
+        >
+          <i>SolaVote</i>
+        </NuxtLink>
+        <div class="flex items-center space-x-3">
+          <client-only>
+            <appkit-button />
+          </client-only>
           <UButton
+            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+            icon="i-lucide-list"
+            to="admin-elections"
+            v-if="address"
+          >
+            My Elections
+          </UButton>
+          <UButton
+            @click="handleWalletButtonClick"
+            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+            icon="i-lucide-newspaper"
+            to="vote-elections"
+            v-if="address"
+          >
+            Vote
+          </UButton>
+          <!-- <UButton
             v-if="!loggedIn"
             to="/api/auth/github"
             icon="i-simple-icons-github"
             label="Login with GitHub"
             color="neutral"
-            size="xs"
             external
-          />
-          <div v-else class="flex flex-wrap -mx-2 sm:mx-0">
-            <UButton
-              to="/todos"
-              icon="i-lucide-list"
-              label="Todos"
-              :color="$route.path === '/todos' ? 'primary' : 'neutral'"
-              variant="ghost"
-            />
-            <UButton
-              to="/optimistic-todos"
-              icon="i-lucide-sparkles"
-              label="Optimistic Todos"
-              :color="$route.path === '/optimistic-todos' ? 'primary' : 'neutral'"
-              variant="ghost"
-            />
+            class="font-medium text-lg"
+          /> -->
+          <div v-else class="flex items-center space-x-4">
             <UDropdownMenu v-if="user" :items="items">
-              <UButton color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down">
-                <UAvatar
-                  :src="`https://github.com/${user.login}.png`"
-                  :alt="user.login"
-                  size="3xs"
-                />
-                {{ user.login }}
+              <UButton
+                color="neutral"
+                variant="ghost"
+                trailing-icon="i-lucide-chevron-down"
+                class="flex items-center space-x-2 font-medium text-lg"
+              >
+                <UAvatar :src="`https://github.com/${user.login}.png`" alt="Avatar" size="3xs" />
+                <span>{{ user.login }}</span>
               </UButton>
             </UDropdownMenu>
           </div>
-        </template>
-        <NuxtPage />
-      </UCard>
+        </div>
+      </header>
 
-      <footer class="text-center mt-2">
-        <NuxtLink
-          href="https://github.com/atinux/atidone"
-          target="_blank"
-          class="text-sm text-neutral-500 hover:text-neutral-700"
-        >
-          GitHub
-        </NuxtLink>
-        ·
-        <NuxtLink
-          href="https://twitter.com/atinux"
-          target="_blank"
-          class="text-sm text-neutral-500 hover:text-neutral-700"
-        >
-          Twitter
-        </NuxtLink>
+      <NuxtPage />
+
+      <footer class="mt-auto py-4 text-center text-[#6BA392] text-sm select-none">
+        © 2025 SolaVote — built with ❤️ by Atinux
       </footer>
     </UContainer>
   </UApp>
 </template>
 
-<style lang="postcss">
-body {
-  @apply font-sans text-neutral-950 bg-neutral-50 dark:bg-neutral-950 dark:text-neutral-50;
+<style>
+/* Global styles and animations */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;700&display=swap');
+
+body,
+html {
+  scroll-behavior: smooth;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.bg-noise {
+  background-image: url('background.png');
+  background-size: cover;
+}
+
+.font-manrope {
+  font-family: 'Manrope', sans-serif;
 }
 </style>

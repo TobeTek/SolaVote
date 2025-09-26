@@ -1,9 +1,14 @@
 export default defineNuxtConfig({
-  ssr: false,
+  // ssr: false,
+  vue: {
+    compilerOptions: {
+      isCustomElement: (tag) => tag.startsWith('appkit-'),
+    },
+  },
   runtimeConfig: {
     public: {
-      projectId: process.env.NUXT_REOWN_PROJECT_ID
-    }
+      projectId: process.env.NUXT_REOWN_PROJECT_ID,
+    },
   },
   modules: [
     '@nuxt/ui',
@@ -11,29 +16,30 @@ export default defineNuxtConfig({
     '@nuxthub/core',
     'nuxt-auth-utils',
     '@pinia/nuxt',
-    '@pinia/colada-nuxt'
+    '@pinia/colada-nuxt',
   ],
   devtools: {
-    enabled: true
+    enabled: true,
   },
   css: ['~/assets/main.css'],
   future: { compatibilityVersion: 4 },
   compatibilityDate: '2025-04-02',
   hub: {
-    database: true
+    database: true,
+    blob: true,
   },
   nitro: {
     experimental: {
-      openAPI: true
-    }
+      openAPI: true,
+    },
   },
   // Development config
   eslint: {
     config: {
       stylistic: {
         quotes: 'single',
-        commaDangle: 'never'
-      }
-    }
-  }
+        commaDangle: 'never',
+      },
+    },
+  },
 })
