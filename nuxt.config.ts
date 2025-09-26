@@ -43,11 +43,11 @@ export default defineNuxtConfig({
       },
     },
   },
-  //  vite: {
-  //   build: {
-  //     rollupOptions: {
-  //       external: ['valtio', 'react', 'react-dom'],
-  //     },
-  //   },
-  // },
+   vite: {
+    build: {
+      rollupOptions: {
+        external: ['solavote-contracts'],
+      },
+    },
+  },
 })

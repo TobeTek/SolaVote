@@ -672,7 +672,7 @@ watch(
                   v-model="newWhitelistAddress"
                   type="text"
                   class="flex-1 bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                  placeholder="0x..."
+                  placeholder="Jns..89"
                 />
                 <button
                   @click="addToWhitelist"
