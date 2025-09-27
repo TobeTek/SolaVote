@@ -22,7 +22,7 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-vue-next'
 import { onMounted, ref } from 'vue'
 
@@ -116,10 +116,24 @@ const fetchElections = async () => {
   }
 }
 
-const fetchElectionResults = async (electionId: string) => {
-  isLoading.value.results = true
+const fetchElectionVoters = async () => {
   try {
-    const results = await $fetch(`/api/elections/${electionId}/results`)
+    const { voters } = await $fetch(`/api/elections/${selectedElection.value?.id}/voters`)
+    if (selectedElection.value) {
+      selectedElection.value.voters = voters
+    }
+  } catch (error) {
+    console.error('Failed to fetch election voters:', error)
+  }
+}
+
+const fetchElectionResults = async () => {
+  isLoading.value.results = true
+  if (!selectedElection.value) {
+    return
+  }
+  try {
+    const results = await $fetch(`/api/elections/${selectedElection.value?.id}/results`)
     if (selectedElection.value) {
       selectedElection.value.results = results
     }
@@ -130,15 +144,19 @@ const fetchElectionResults = async (electionId: string) => {
   }
 }
 
+const fetchElectionDetails = async (election: Election) => {
+  selectedElection.value = election
+  await fetchElectionVoters()
+  await fetchElectionResults()
+}
+
 const toggleElectionStatus = async (election: Election) => {
   isLoading.value.toggle = true
   try {
     const updated = await $fetch(`/api/elections/${election.id}/toggle`, {
       method: 'POST',
-      body: { userAddress: appKitAccount.value.address }
+      body: { userAddress: appKitAccount.value.address },
     })
-
-    // Update local state
     const index = elections.value.findIndex((e) => e.id === election.id)
     if (index !== -1) {
       elections.value[index] = {
@@ -147,7 +165,6 @@ const toggleElectionStatus = async (election: Election) => {
         startTime: new Date(updated.startTime).getTime(),
         endTime: new Date(updated.endTime).getTime(),
       }
-
       if (selectedElection.value?.id === election.id) {
         selectedElection.value = {
           ...selectedElection.value,
@@ -155,8 +172,6 @@ const toggleElectionStatus = async (election: Election) => {
           startTime: new Date(updated.startTime).getTime(),
           endTime: new Date(updated.endTime).getTime(),
         }
-
-        // If we just closed the election, fetch results
         if (!updated.isActive) {
           await fetchElectionResults(election.id)
           showResults.value = true
@@ -291,7 +306,7 @@ const getWinnerNames = (winners: string[]) => {
   return `${winners.slice(0, -1).join(', ')}, and ${winners[winners.length - 1]}`
 }
 
-const getBarColor = (candidate: { name: string }) => {
+const getBarColor = (candidate: { candidate: string }) => {
   const colors = [
     '#3b82f6', // blue-500
     '#10b981', // emerald-500
@@ -300,312 +315,426 @@ const getBarColor = (candidate: { name: string }) => {
     '#ef4444', // red-500
     '#06b6d4', // cyan-500
   ]
-
   let hash = 0
-  for (let i = 0; i < candidate.name.length; i++) {
-    hash = candidate.name.charCodeAt(i) + ((hash << 5) - hash)
+  for (let i = 0; i < candidate.candidate.length; i++) {
+    hash = candidate.candidate.charCodeAt(i) + ((hash << 5) - hash)
   }
   return colors[Math.abs(hash) % colors.length]
 }
 
-onMounted(fetchElections)
+watch(
+  () => appKitAccount.value?.address,
+  () => {
+    if (appKitAccount.value?.address) {
+      fetchElections()
+    }
+  },
+  { immediately: true }
+)
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100 p-8">
-    <!-- Main Admin View -->
-    <div v-if="!selectedElection" class="max-w-6xl mx-auto">
-      <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-white">Manage Elections</h1>
+  <div class="min-h-screen bg-gray-900 text-gray-100 p-8" v-if="!!appKitAccount.address">
+    <div>
+      <!-- Main Admin View -->
+      <div v-if="!selectedElection" class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold text-white">Manage Elections</h1>
+          <UButton
+            @click="showCreateModal = true"
+            class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors"
+          >
+            <Plus class="h-5 w-5" />
+            <span>Create Election</span>
+          </UButton>
+        </div>
+        <div v-if="isLoading.elections || !appKitAccount.address" class="flex justify-center py-12">
+          <p class="text-gray-400">Loading elections...</p>
+        </div>
+        <div v-else class="space-y-6">
+          <div
+            v-for="election in elections"
+            :key="election.id"
+            @click="fetchElectionDetails(election)"
+            class="bg-gray-800 p-6 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors border border-gray-700"
+          >
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h2 class="text-xl font-semibold text-white mb-2">{{ election.title }}</h2>
+                <div class="flex items-center gap-4 text-sm text-gray-400">
+                  <div class="flex items-center gap-1">
+                    <Calendar class="h-4 w-4" />
+                    <span>{{ new Date(election.startTime).toLocaleDateString() }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <Clock class="h-4 w-4" />
+                    <span>{{ timeRemaining(election.endTime) }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <User class="h-4 w-4" />
+                    <span
+                      >{{ election.creatorAddress.slice(0, 6) }}...{{
+                        election.creatorAddress.slice(-4)
+                      }}</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <Lock v-if="election.isPrivate" class="h-5 w-5 text-red-400" />
+                <span v-if="election.isPrivate" class="text-red-400 text-sm">Private</span>
+                <span v-else class="text-green-400 text-sm">Public</span>
+                <span
+                  class="text-sm px-2 py-1 rounded-full"
+                  :class="
+                    election.isActive ? 'bg-green-900 text-green-400' : 'bg-gray-700 text-gray-400'
+                  "
+                >
+                  {{ election.isActive ? 'Active' : 'Finished' }}
+                </span>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center gap-2 text-sm text-gray-400">
+              <Users class="h-4 w-4" />
+              <span>{{ election.voters.length }} voters</span>
+              <div v-if="election.results" class="ml-4 flex items-center gap-1">
+                <BarChart2 class="h-4 w-4 text-purple-400" />
+                <span class="text-purple-400">Results available</span>
+              </div>
+              <Key class="h-4 w-4 ml-4" />
+              <span>Keys generated</span>
+              <ImageIcon class="h-4 w-4 ml-4" />
+              <span>ID Template {{ election.idCardTemplate ? 'set' : 'not set' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Election Details View -->
+      <div v-else class="max-w-6xl mx-auto">
         <button
-          @click="showCreateModal = true"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors"
-          :disabled="isLoading.elections"
+          @click="
+            () => {
+              selectedElection = null
+              showResults = false
+            }
+          "
+          class="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
-          <Plus class="h-5 w-5" />
-          <span>Create Election</span>
+          <ArrowLeft class="h-5 w-5" />
+          <span>Back to Elections</span>
         </button>
-      </div>
-
-      <div v-if="isLoading.elections || !appKitAccount.address" class="flex justify-center py-12">
-        <p class="text-gray-400">Loading elections...</p>
-      </div>
-
-      <div v-else class="space-y-6">
-        <div
-          v-for="election in elections"
-          :key="election.id"
-          @click="selectedElection = election"
-          class="bg-gray-800 p-6 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors border border-gray-700"
-        >
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <h2 class="text-xl font-semibold text-white mb-2">{{ election.title }}</h2>
-              <div class="flex items-center gap-4 text-sm text-gray-400">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
+          <div class="flex justify-between items-start mb-6">
+            <div>
+              <h1 class="text-3xl font-bold text-white mb-2">{{ selectedElection.title }}</h1>
+              <div class="flex items-center gap-4 text-gray-400">
                 <div class="flex items-center gap-1">
                   <Calendar class="h-4 w-4" />
-                  <span>{{ new Date(election.startTime).toLocaleDateString() }}</span>
+                  <span>{{ new Date(selectedElection.startTime).toLocaleDateString() }}</span>
                 </div>
                 <div class="flex items-center gap-1">
                   <Clock class="h-4 w-4" />
-                  <span>{{ timeRemaining(election.endTime) }}</span>
+                  <span>{{ timeRemaining(selectedElection.endTime) }}</span>
                 </div>
                 <div class="flex items-center gap-1">
                   <User class="h-4 w-4" />
-                  <span>{{ election.creatorAddress.slice(0, 6) }}...{{ election.creatorAddress.slice(-4) }}</span>
+                  <span
+                    >{{ selectedElection.creatorAddress.slice(0, 6) }}...{{
+                      selectedElection.creatorAddress.slice(-4)
+                    }}</span
+                  >
                 </div>
               </div>
             </div>
-            <div class="flex items-center gap-2">
-              <Lock v-if="election.isPrivate" class="h-5 w-5 text-red-400" />
-              <span v-if="election.isPrivate" class="text-red-400 text-sm">Private</span>
-              <span v-else class="text-green-400 text-sm">Public</span>
-              <span
-                class="text-sm px-2 py-1 rounded-full"
-                :class="election.isActive ? 'bg-green-900 text-green-400' : 'bg-gray-700 text-gray-400'"
+            <div class="flex gap-2">
+              <button
+                @click="toggleElectionStatus(selectedElection)"
+                class="flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors"
+                :class="
+                  selectedElection.isActive
+                    ? 'bg-red-900 text-red-400 hover:bg-red-800'
+                    : 'bg-green-900 text-green-400 hover:bg-green-800'
+                "
+                :disabled="isLoading.toggle"
               >
-                {{ election.isActive ? 'Active' : 'Finished' }}
-              </span>
+                <StopCircle v-if="selectedElection.isActive" class="h-4 w-4" />
+                <Play v-else class="h-4 w-4" />
+                <span>{{ selectedElection.isActive ? 'Close' : 'Start' }} Election</span>
+              </button>
+              <button
+                v-if="selectedElection.isPrivate"
+                @click="showWhitelistModal = true"
+                class="flex items-center gap-1 px-3 py-1 bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm rounded-md transition-colors"
+                :disabled="isLoading.whitelist"
+              >
+                <List class="h-4 w-4" />
+                <span>Manage Whitelist</span>
+              </button>
+              <button
+                v-if="!selectedElection.isActive"
+                @click="showResults = !showResults"
+                class="flex items-center gap-1 px-3 py-1 bg-purple-700 text-purple-300 hover:bg-purple-600 text-sm rounded-md transition-colors"
+              >
+                <BarChart2 class="h-4 w-4" />
+                <span>{{ showResults ? 'Hide Results' : 'View Results' }}</span>
+              </button>
             </div>
           </div>
-
-          <div class="mt-4 flex items-center gap-2 text-sm text-gray-400">
-            <Users class="h-4 w-4" />
-            <span>{{ election.voters.length }} voters</span>
-
-            <div v-if="election.results" class="ml-4 flex items-center gap-1">
-              <BarChart2 class="h-4 w-4 text-purple-400" />
-              <span class="text-purple-400">Results available</span>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-gray-700 p-4 rounded-lg">
+              <h3 class="font-semibold text-white mb-2">Public Key</h3>
+              <p class="text-sm text-gray-300 font-mono break-all">
+                {{ selectedElection.publicKey }}
+              </p>
             </div>
-
-            <Key class="h-4 w-4 ml-4" />
-            <span>Keys generated</span>
-
-            <ImageIcon class="h-4 w-4 ml-4" />
-            <span>ID Template {{ election.idCardTemplate ? 'set' : 'not set' }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Election Details View -->
-    <div v-else class="max-w-6xl mx-auto">
-      <button
-        @click="selectedElection = null; showResults = false"
-        class="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-      >
-        <ArrowLeft class="h-5 w-5" />
-        <span>Back to Elections</span>
-      </button>
-
-      <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
-        <div class="flex justify-between items-start mb-6">
-          <div>
-            <h1 class="text-3xl font-bold text-white mb-2">{{ selectedElection.title }}</h1>
-            <div class="flex items-center gap-4 text-gray-400">
-              <div class="flex items-center gap-1">
-                <Calendar class="h-4 w-4" />
-                <span>{{ new Date(selectedElection.startTime).toLocaleDateString() }}</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <Clock class="h-4 w-4" />
-                <span>{{ timeRemaining(selectedElection.endTime) }}</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <User class="h-4 w-4" />
-                <span>{{ selectedElection.creatorAddress.slice(0, 6) }}...{{ selectedElection.creatorAddress.slice(-4) }}</span>
-              </div>
+            <div class="bg-gray-700 p-4 rounded-lg">
+              <h3 class="font-semibold text-white mb-2">Private Key</h3>
+              <p class="text-sm text-gray-300 font-mono break-all">
+                {{ selectedElection.privateKey }}
+              </p>
             </div>
           </div>
-          <div class="flex gap-2">
-            <button
-              @click="toggleElectionStatus(selectedElection)"
-              class="flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors"
-              :class="selectedElection.isActive ? 'bg-red-900 text-red-400 hover:bg-red-800' : 'bg-green-900 text-green-400 hover:bg-green-800'"
-              :disabled="isLoading.toggle"
-            >
-              <StopCircle v-if="selectedElection.isActive" class="h-4 w-4" />
-              <Play v-else class="h-4 w-4" />
-              <span>{{ selectedElection.isActive ? 'Close' : 'Start' }} Election</span>
-            </button>
-
-            <button
-              v-if="selectedElection.isPrivate"
-              @click="showWhitelistModal = true"
-              class="flex items-center gap-1 px-3 py-1 bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm rounded-md transition-colors"
-              :disabled="isLoading.whitelist"
-            >
-              <List class="h-4 w-4" />
-              <span>Manage Whitelist</span>
-            </button>
-
-            <button
-              v-if="!selectedElection.isActive && selectedElection.results"
-              @click="showResults = !showResults"
-              class="flex items-center gap-1 px-3 py-1 bg-purple-700 text-purple-300 hover:bg-purple-600 text-sm rounded-md transition-colors"
-            >
-              <BarChart2 class="h-4 w-4" />
-              <span>{{ showResults ? 'Hide Results' : 'View Results' }}</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div class="bg-gray-700 p-4 rounded-lg">
-            <h3 class="font-semibold text-white mb-2">Public Key</h3>
-            <p class="text-sm text-gray-300 font-mono break-all">{{ selectedElection.publicKey }}</p>
-          </div>
-          <div class="bg-gray-700 p-4 rounded-lg">
-            <h3 class="font-semibold text-white mb-2">Private Key</h3>
-            <p class="text-sm text-gray-300 font-mono break-all">{{ selectedElection.privateKey }}</p>
-          </div>
-        </div>
-
-        <!-- ID Card Template Preview -->
-        <div v-if="selectedElection.idCardTemplate" class="bg-gray-700 p-4 rounded-lg mb-6">
-          <h3 class="font-semibold text-white mb-3">ID Card Template</h3>
-          <div class="flex flex-col items-center">
-            <img
-              :src="`/${selectedElection.idCardTemplate}`"
-              alt="ID Card Template"
-              class="max-h-64 max-w-full object-contain mb-3 border border-gray-600 rounded"
-            />
-            <p class="text-sm text-gray-400">This template will be used for ID verification</p>
-          </div>
-        </div>
-
-        <div class="bg-gray-700 p-4 rounded-lg mb-6">
-          <h3 class="font-semibold text-white mb-4">Candidates</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div
-              v-for="candidate in selectedElection.candidates"
-              :key="candidate.name"
-              class="bg-gray-800 p-4 rounded-lg border border-gray-600"
-            >
+          <!-- ID Card Template Preview -->
+          <div v-if="selectedElection.idCardTemplate" class="bg-gray-700 p-4 rounded-lg mb-6">
+            <h3 class="font-semibold text-white mb-3">ID Card Template</h3>
+            <div class="flex flex-col items-center">
               <img
-                :src="candidate.picture"
-                alt="Candidate"
-                class="h-16 w-16 rounded-full object-cover mx-auto mb-3"
+                :src="`/${selectedElection.idCardTemplate}`"
+                alt="ID Card Template"
+                class="max-h-64 max-w-full object-contain mb-3 border border-gray-600 rounded"
               />
-              <h4 class="font-medium text-white text-center">{{ candidate.name }}</h4>
-              <p class="text-sm text-gray-300 text-center line-clamp-3">{{ candidate.manifesto }}</p>
+              <p class="text-sm text-gray-400">This template will be used for ID verification</p>
             </div>
           </div>
-        </div>
-
-        <div class="bg-gray-700 p-4 rounded-lg">
-          <h3 class="font-semibold text-white mb-4">Voters</h3>
-          <div v-if="selectedElection.voters.length" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            <div
-              v-for="voter in selectedElection.voters"
-              :key="voter"
-              class="bg-gray-800 px-3 py-2 rounded-md text-sm text-gray-300"
-            >
-              {{ voter.slice(0, 6) }}...{{ voter.slice(-4) }}
+          <div class="bg-gray-700 p-4 rounded-lg mb-6">
+            <h3 class="font-semibold text-white mb-4">Candidates</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                v-for="candidate in selectedElection.candidates"
+                :key="candidate.name"
+                class="bg-gray-800 p-4 rounded-lg border border-gray-600"
+              >
+                <img
+                  :src="candidate.picture"
+                  alt="Candidate"
+                  class="h-16 w-16 rounded-full object-cover mx-auto mb-3"
+                />
+                <h4 class="font-medium text-white text-center">{{ candidate.name }}</h4>
+                <p class="text-sm text-gray-300 text-center line-clamp-3">
+                  {{ candidate.manifesto }}
+                </p>
+              </div>
             </div>
           </div>
-          <p v-else class="text-gray-400 text-center py-4">No voters yet</p>
-        </div>
-      </div>
-
-      <!-- Election Results Section -->
-      <div v-if="showResults && selectedElection.results" class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
-        <h2 class="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-          <BarChart2 class="h-6 w-6" />
-          Election Results
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <!-- Voters Section -->
           <div class="bg-gray-700 p-4 rounded-lg">
-            <h3 class="font-semibold text-white mb-2">Total Votes</h3>
-            <p class="text-2xl font-bold text-white">{{ selectedElection.results.totalVotes }}</p>
-          </div>
-          <div class="bg-gray-700 p-4 rounded-lg">
-            <h3 class="font-semibold text-white mb-2">Closed At</h3>
-            <p class="text-white">{{ new Date(selectedElection.results.closedAt).toLocaleString() }}</p>
-          </div>
-        </div>
-
-        <div class="bg-gray-700 p-4 rounded-lg mb-6">
-          <h3 class="font-semibold text-white mb-4">Results Breakdown</h3>
-          <div class="space-y-4">
+            <h3 class="font-semibold text-white mb-4">Voters</h3>
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-sm text-gray-400">{{ selectedElection.voters.length }} voters</span>
+            </div>
             <div
-              v-for="candidate in selectedElection.results.candidates"
-              :key="candidate.name"
-              class="bg-gray-800 p-4 rounded-lg"
+              v-if="selectedElection.voters.length"
+              class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
             >
-              <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
-                    <span class="text-white font-semibold">{{ candidate.name.charAt(0) }}</span>
-                  </div>
-                  <div>
-                    <h4 class="font-semibold text-white">{{ candidate.name }}</h4>
-                    <p class="text-gray-400 text-sm">{{ candidate.votes }} votes</p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <p class="text-white font-semibold">{{ candidate.percentage.toFixed(1) }}%</p>
-                  <div class="w-32 h-2 bg-gray-600 rounded-full mt-1">
+              <div
+                v-for="voter in selectedElection.voters"
+                :key="voter"
+                class="bg-gray-800 px-3 py-2 rounded-md text-sm text-gray-300"
+              >
+                {{ voter.slice(0, 6) }}...{{ voter.slice(-4) }}
+              </div>
+            </div>
+            <p v-else class="text-gray-400 text-center py-4">No voters yet</p>
+          </div>
+        </div>
+        <!-- Election Results Section -->
+        <div
+          v-if="showResults"
+          class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8"
+        >
+          <h2 class="text-2xl font-bold mb-6 text-white flex items-center gap-2">
+            <BarChart2 class="h-6 w-6" />
+            Election Results
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-gray-700 p-4 rounded-lg">
+              <h3 class="font-semibold text-white mb-2">Total Votes</h3>
+              <p class="text-2xl font-bold text-white">{{ selectedElection.results.totalVotes }}</p>
+            </div>
+            <div class="bg-gray-700 p-4 rounded-lg">
+              <h3 class="font-semibold text-white mb-2">Closed At</h3>
+              <p class="text-white">
+                {{ new Date(selectedElection.results.closedAt).toLocaleString() }}
+              </p>
+            </div>
+          </div>
+          <div class="bg-gray-700 p-4 rounded-lg mb-6">
+            <h3 class="font-semibold text-white mb-4">Results Breakdown</h3>
+            <div class="space-y-4">
+              <div
+                v-for="candidate in selectedElection.results.candidates"
+                :key="candidate.name"
+                class="bg-gray-800 p-4 rounded-lg"
+              >
+                <div class="flex justify-between items-center">
+                  <div class="flex items-center gap-3">
                     <div
-                      class="h-full rounded-full"
-                      :style="{ width: `${candidate.percentage}%`, backgroundColor: getBarColor(candidate) }"
-                    ></div>
+                      class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center"
+                    >
+                      <span class="text-white font-semibold">{{ candidate.candidate.charAt(0) }}</span>
+                    </div>
+                    <div>
+                      <h4 class="font-semibold text-white">{{ candidate.candidate }}</h4>
+                      <p class="text-gray-400 text-sm">{{ candidate.votes }} votes</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-white font-semibold">{{ candidate.percentage.toFixed(1) }}%</p>
+                    <div class="w-32 h-2 bg-gray-600 rounded-full mt-1">
+                      <div
+                        class="h-full rounded-full"
+                        :style="{
+                          width: `${candidate.percentage}%`,
+                          backgroundColor: getBarColor(candidate),
+                        }"
+                      ></div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="bg-gray-700 p-4 rounded-lg mb-6">
-          <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
-            <Trophy class="h-5 w-5" />
-            Winners
-          </h3>
-          <div class="bg-gray-800 p-4 rounded-md">
-            <p class="text-white">
-              {{ getWinnerNames(selectedElection.results.winners) }}
-              {{ selectedElection.results.winners.length > 1 ? 'are' : 'is' }}
-              the {{ selectedElection.results.winners.length > 1 ? 'winners' : 'winner' }} with
-              {{ selectedElection.results.candidates.find(c => selectedElection.results.winners.includes(c.name))?.votes }} votes
-            </p>
+          <div class="bg-gray-700 p-4 rounded-lg mb-6">
+            <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+              <Trophy class="h-5 w-5" />
+              Winners
+            </h3>
+            <div class="bg-gray-800 p-4 rounded-md">
+              <p class="text-white">
+                {{ getWinnerNames(selectedElection.results.winners) }}
+                {{ selectedElection.results.winners.length > 1 ? 'are' : 'is' }}
+                the {{ selectedElection.results.winners.length > 1 ? 'winners' : 'winner' }} with
+                {{
+                  selectedElection.results.candidates.find((c) =>
+                    selectedElection.results?.winners.includes(c.name)
+                  )?.votes
+                }}
+                votes
+              </p>
+            </div>
+          </div>
+          <!-- Decrypted Votes Audit Section -->
+          <div class="bg-gray-700 p-4 rounded-lg">
+            <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+              <Eye class="h-5 w-5" />
+              Decrypted Votes Audit
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-700">
+                <thead class="bg-gray-800">
+                  <tr>
+                    <th
+                      scope="col"
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                    >
+                      Voter
+                    </th>
+                    <th
+                      scope="col"
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                    >
+                      Candidate
+                    </th>
+                    <th
+                      scope="col"
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                    >
+                      Timestamp
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="bg-gray-800 divide-y divide-gray-700">
+                  <tr v-for="(vote, index) in selectedElection.results.decryptedVotes" :key="index">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {{ vote.voter.slice(0, 6) }}...{{ vote.voter.slice(-4) }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {{ vote.candidate }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {{ new Date(vote.timestamp).toLocaleString() }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-
-        <!-- Decrypted Votes Audit Section -->
-        <div class="bg-gray-700 p-4 rounded-lg">
-          <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
-            <Eye class="h-5 w-5" />
-            Decrypted Votes Audit
-          </h3>
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-700">
-              <thead class="bg-gray-800">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Voter</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Candidate</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody class="bg-gray-800 divide-y divide-gray-700">
-                <tr v-for="(vote, index) in selectedElection.results.decryptedVotes" :key="index">
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {{ vote.voter.slice(0, 6) }}...{{ vote.voter.slice(-4) }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {{ vote.candidate }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {{ new Date(vote.timestamp).toLocaleString() }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <!-- Whitelist Management Modal -->
+        <div
+          v-if="showWhitelistModal && selectedElection?.isPrivate"
+          class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50"
+          @click.self="showWhitelistModal = false"
+        >
+          <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
+            <div class="p-6">
+              <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-white">Manage Whitelist</h2>
+                <button @click="showWhitelistModal = false" class="text-gray-400 hover:text-white">
+                  <X class="h-6 w-6" />
+                </button>
+              </div>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-300 mb-1"
+                    >Add Wallet Address</label
+                  >
+                  <div class="flex gap-2">
+                    <input
+                      v-model="newWhitelistAddress"
+                      type="text"
+                      class="flex-1 bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                      placeholder="0x..."
+                    />
+                    <button
+                      @click="addToWhitelist"
+                      :disabled="!newWhitelistAddress || isLoading.whitelist"
+                      class="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600"
+                    >
+                      <Plus class="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="text-lg font-medium text-white mb-3">Whitelisted Addresses</h3>
+                  <div
+                    v-if="selectedElection.whitelist.length"
+                    class="space-y-2 max-h-64 overflow-y-auto"
+                  >
+                    <div
+                      v-for="(address, index) in selectedElection.whitelist"
+                      :key="index"
+                      class="flex justify-between items-center bg-gray-700 p-3 rounded-md"
+                    >
+                      <span class="text-sm text-gray-300"
+                        >{{ address.slice(0, 6) }}...{{ address.slice(-4) }}</span
+                      >
+                      <button
+                        @click="removeFromWhitelist(index)"
+                        class="text-gray-400 hover:text-red-400"
+                        :disabled="isLoading.whitelist"
+                      >
+                        <Trash2 class="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <p v-else class="text-gray-400 text-center py-4">No addresses whitelisted yet</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
       <!-- Create Election Modal -->
       <div
         v-if="showCreateModal"
@@ -630,7 +759,6 @@ onMounted(fetchElections)
                   placeholder="e.g., UNIABUJA SUG President 2025"
                 />
               </div>
-
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label class="block text-sm font-medium text-gray-300 mb-1">Start Time</label>
@@ -649,7 +777,6 @@ onMounted(fetchElections)
                   />
                 </div>
               </div>
-
               <div class="flex items-center gap-3">
                 <input
                   v-model="newElection.isPrivate"
@@ -657,14 +784,16 @@ onMounted(fetchElections)
                   id="private-election"
                   class="rounded text-blue-500 focus:ring-blue-400"
                 />
-                <label for="private-election" class="text-sm text-gray-300">Private Election (Whitelist Required)</label>
+                <label for="private-election" class="text-sm text-gray-300"
+                  >Private Election (Whitelist Required)</label
+                >
               </div>
-
               <!-- ID Card Template Upload -->
               <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">ID Card Template</label>
-                <p class="text-xs text-gray-400 mb-2">Upload an image of the ID card template for verification</p>
-
+                <p class="text-xs text-gray-400 mb-2">
+                  Upload an image of the ID card template for verification
+                </p>
                 <div
                   @click="$refs.templateUpload.click()"
                   class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
@@ -688,7 +817,6 @@ onMounted(fetchElections)
                   </p>
                   <p class="text-xs text-gray-400 mt-1">PNG, JPG (Max. 5MB)</p>
                 </div>
-
                 <!-- Template Preview -->
                 <div v-if="templateImagePreview" class="mt-4">
                   <div class="relative">
@@ -706,7 +834,6 @@ onMounted(fetchElections)
                   </div>
                 </div>
               </div>
-
               <div>
                 <div class="flex justify-between items-center mb-4">
                   <h3 class="text-lg font-medium text-white">Candidates</h3>
@@ -718,7 +845,6 @@ onMounted(fetchElections)
                     <span>Add Candidate</span>
                   </button>
                 </div>
-
                 <div class="space-y-4">
                   <div
                     v-for="(candidate, index) in newElection.candidates"
@@ -731,7 +857,6 @@ onMounted(fetchElections)
                     >
                       <Trash2 class="h-4 w-4" />
                     </button>
-
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">Name</label>
@@ -743,7 +868,9 @@ onMounted(fetchElections)
                         />
                       </div>
                       <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Picture URL</label>
+                        <label class="block text-sm font-medium text-gray-300 mb-1"
+                          >Picture URL</label
+                        >
                         <input
                           v-model="candidate.picture"
                           type="text"
@@ -752,7 +879,6 @@ onMounted(fetchElections)
                         />
                       </div>
                     </div>
-
                     <div class="mt-4">
                       <label class="block text-sm font-medium text-gray-300 mb-1">Manifesto</label>
                       <textarea
@@ -765,7 +891,6 @@ onMounted(fetchElections)
                   </div>
                 </div>
               </div>
-
               <div class="flex justify-end gap-3 mt-6">
                 <button
                   @click="showCreateModal = false"
@@ -775,7 +900,11 @@ onMounted(fetchElections)
                 </button>
                 <button
                   @click="addElection"
-                  :disabled="!newElection.title || !newElection.candidates.length || !newElection.idCardTemplate"
+                  :disabled="
+                    !newElection.title ||
+                    !newElection.candidates.length ||
+                    !newElection.idCardTemplate
+                  "
                   class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                   <Plus class="h-4 w-4" />
@@ -786,66 +915,7 @@ onMounted(fetchElections)
           </div>
         </div>
       </div>
-
-      <!-- Whitelist Management Modal -->
-      <div
-        v-if="showWhitelistModal && selectedElection?.isPrivate"
-        class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50"
-        @click.self="showWhitelistModal = false"
-      >
-        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
-          <div class="p-6">
-            <div class="flex justify-between items-center mb-6">
-              <h2 class="text-2xl font-bold text-white">Manage Whitelist</h2>
-              <button @click="showWhitelistModal = false" class="text-gray-400 hover:text-white">
-                <X class="h-6 w-6" />
-              </button>
-            </div>
-
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Add Wallet Address</label>
-                <div class="flex gap-2">
-                  <input
-                    v-model="newWhitelistAddress"
-                    type="text"
-                    class="flex-1 bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                    placeholder="0x..."
-                  />
-                  <button
-                    @click="addToWhitelist"
-                    :disabled="!newWhitelistAddress || isLoading.whitelist"
-                    class="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600"
-                  >
-                    <Plus class="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 class="text-lg font-medium text-white mb-3">Whitelisted Addresses</h3>
-                <div v-if="selectedElection.whitelist.length" class="space-y-2 max-h-64 overflow-y-auto">
-                  <div
-                    v-for="(address, index) in selectedElection.whitelist"
-                    :key="index"
-                    class="flex justify-between items-center bg-gray-700 p-3 rounded-md"
-                  >
-                    <span class="text-sm text-gray-300">{{ address.slice(0, 6) }}...{{ address.slice(-4) }}</span>
-                    <button
-                      @click="removeFromWhitelist(index)"
-                      class="text-gray-400 hover:text-red-400"
-                      :disabled="isLoading.whitelist"
-                    >
-                      <Trash2 class="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <p v-else class="text-gray-400 text-center py-4">No addresses whitelisted yet</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
+    <div>Ensure to kindly connect your wallet!👷🏾</div>
   </div>
 </template>

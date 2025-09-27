@@ -126,15 +126,6 @@ const items = [
           >
             Vote
           </UButton>
-          <!-- <UButton
-            v-if="!loggedIn"
-            to="/api/auth/github"
-            icon="i-simple-icons-github"
-            label="Login with GitHub"
-            color="neutral"
-            external
-            class="font-medium text-lg"
-          /> -->
           <div v-else class="flex items-center space-x-4">
             <UDropdownMenu v-if="user" :items="items">
               <UButton
@@ -151,8 +142,8 @@ const items = [
         </div>
       </header>
 
-      <NuxtPage v-if="appKitAccount?.address"/>
-      <div v-else>Kindly connect your wallet! :)</div>
+      <NuxtPage/>
+      
 
       <footer class="mt-auto py-4 text-center text-[#6BA392] text-sm select-none">
         © 2025 SolaVote — built with ❤️ by TobeTek

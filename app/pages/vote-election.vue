@@ -31,7 +31,7 @@ interface Election {
   publicKey: string
   idCardTemplate: string
   merkleRoot?: string
-  hasVoted: boolean // Added property
+  hasVoted: boolean
   candidates: Array<{
     name: string
     picture: string
@@ -68,6 +68,17 @@ const timeRemaining = (endTime: string) => {
   return `${days}d ${hours}h remaining`
 }
 
+const timeUntilElectionEnds = (endTime: string) => {
+  const end = new Date(endTime)
+  const now = new Date()
+  const diff = end.getTime() - now.getTime()
+  if (diff <= 0) return 'Election has ended'
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  return `${days}d ${hours}h ${minutes}m remaining`
+}
+
 const isElectionActive = (election: Election) => {
   const now = new Date()
   const start = new Date(election.startTime)
@@ -77,7 +88,6 @@ const isElectionActive = (election: Election) => {
 
 const filteredAndPaginatedElections = computed(() => {
   let filtered = elections.value
-  // Apply search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(
@@ -86,14 +96,12 @@ const filteredAndPaginatedElections = computed(() => {
         election.creatorAddress.toLowerCase().includes(query)
     )
   }
-  // Apply privacy filters
   if (!showPrivate.value) {
     filtered = filtered.filter((election) => !election.isPrivate)
   }
   if (!showPublic.value) {
     filtered = filtered.filter((election) => election.isPrivate)
   }
-  // Pagination
   const start = (currentPage.value - 1) * itemsPerPage
   const end = start + itemsPerPage
   return filtered.slice(start, end)
@@ -130,7 +138,9 @@ const fetchElections = async () => {
 
 const fetchElectionDetails = async (id: string) => {
   try {
-    selectedElection.value = await $fetch(`/api/elections/${id}`)
+    selectedElection.value = await $fetch(`/api/elections/${id}`, {
+      params: { userAddress: appKitAccount.value?.address }
+    })
     if (selectedElection.value.isPrivate && appKitAccount.value?.address) {
       await fetchMerkleProof()
     }
@@ -197,7 +207,6 @@ const submitVote = async () => {
       },
     })
     voteSubmissionStatus.value = 'success'
-    // Refresh election details to update hasVoted status
     await fetchElectionDetails(selectedElection.value.id)
     setTimeout(() => {
       selectedElection.value = null
@@ -249,431 +258,423 @@ watch([searchQuery, showPrivate, showPublic], () => {
 
 <template>
   <div class="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-8">
-    <!-- Election List View -->
-    <div v-if="!selectedElection" class="mx-auto">
-      <div class="flex flex-col justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-white mb-4 md:mb-0">Available Elections</h1>
-        <div class="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-          <div class="relative w-full md:w-64">
-            <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search elections..."
-              class="w-full pl-10 pr-4 py-2 bg-gray-800 rounded-md border border-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 text-white"
-            />
-          </div>
-          <div class="flex gap-2">
-            <button
-              @click="showPrivate = !showPrivate"
-              class="flex items-center gap-1 px-3 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm"
-              :class="showPrivate ? 'text-blue-400 border-blue-400' : 'text-gray-400'"
-            >
-              <Lock class="h-4 w-4" />
-              <span>Private</span>
-            </button>
-            <button
-              @click="showPublic = !showPublic"
-              class="flex items-center gap-1 px-3 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm"
-              :class="showPublic ? 'text-blue-400 border-blue-400' : 'text-gray-400'"
-            >
-              <span>Public</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Election Cards -->
-      <div v-if="filteredAndPaginatedElections.length === 0" class="text-center py-12">
-        <p class="text-gray-400">No elections match your filters</p>
-      </div>
-
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div
-          v-for="election in filteredAndPaginatedElections"
-          :key="election.id"
-          @click="fetchElectionDetails(election.id)"
-          class="bg-gray-800 p-6 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors border border-gray-700 relative"
-        >
-          <!-- Voted indicator -->
-          <div
-            v-if="election.hasVoted"
-            class="absolute top-2 right-2 bg-green-600 rounded-full p-1.5"
-          >
-            <Check class="h-4 w-4 text-white" />
-          </div>
-
-          <div class="flex flex-col h-full">
-            <div class="flex-1">
-              <h2 class="text-xl font-semibold text-white mb-2">{{ election.title }}</h2>
-              <div class="flex items-center gap-2 mt-2 text-sm text-gray-400">
-                <Calendar class="h-4 w-4" />
-                <span>{{ new Date(election.startTime).toLocaleDateString() }}</span>
-              </div>
-              <div class="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                <Clock class="h-4 w-4" />
-                <span>{{ timeRemaining(election.endTime) }}</span>
-              </div>
-              <div class="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                <User class="h-4 w-4" />
-                <span
-                  >{{ election.creatorAddress.slice(0, 6) }}...{{
-                    election.creatorAddress.slice(-4)
-                  }}</span
-                >
-              </div>
+    <div v-if="appKitAccount.address">
+      <!-- Election List View -->
+      <div v-if="!selectedElection" class="mx-auto">
+        <div class="flex flex-col justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold text-white mb-4 md:mb-0">Available Elections</h1>
+          <div class="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <div class="relative w-full md:w-64">
+              <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Search elections..."
+                class="w-full pl-10 pr-4 py-2 bg-gray-800 rounded-md border border-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 text-white"
+              />
             </div>
-
-            <div class="mt-4 flex items-center justify-between">
-              <div class="flex items-center gap-1 text-sm">
-                <Lock v-if="election.isPrivate" class="h-4 w-4 text-red-400" />
-                <span v-if="election.isPrivate" class="text-red-400">Private</span>
-                <span v-else class="text-green-400">Public</span>
-              </div>
-              <span
-                class="text-xs px-2 py-1 rounded-full"
-                :class="
-                  isElectionActive(election)
-                    ? 'bg-green-900 text-green-400'
-                    : 'bg-gray-700 text-gray-400'
-                "
+            <div class="flex gap-2">
+              <button
+                @click="showPrivate = !showPrivate"
+                class="flex items-center gap-1 px-3 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm"
+                :class="showPrivate ? 'text-blue-400 border-blue-400' : 'text-gray-400'"
               >
-                {{ isElectionActive(election) ? 'Active' : 'Inactive' }}
-              </span>
+                <Lock class="h-4 w-4" />
+                <span>Private</span>
+              </button>
+              <button
+                @click="showPublic = !showPublic"
+                class="flex items-center gap-1 px-3 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm"
+                :class="showPublic ? 'text-blue-400 border-blue-400' : 'text-gray-400'"
+              >
+                <span>Public</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex justify-center items-center gap-4">
-        <button
-          @click="prevPage"
-          :disabled="currentPage === 1"
-          class="p-2 rounded-md bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
-        <span class="text-gray-400">Page {{ currentPage }} of {{ totalPages }}</span>
-        <button
-          @click="nextPage"
-          :disabled="currentPage === totalPages"
-          class="p-2 rounded-md bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
-        >
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Election Detail View -->
-    <div v-else class="max-w-5xl mx-auto">
-      <button
-        @click="selectedElection = null"
-        class="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-      >
-        <ArrowLeft class="h-5 w-5" />
-        <span>Back to Elections</span>
-      </button>
-
-      <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
-        <div class="flex justify-between items-start mb-6">
-          <div>
-            <h1 class="text-3xl font-bold text-white mb-2">{{ selectedElection.title }}</h1>
-            <div class="flex items-center gap-4 text-gray-400">
-              <div class="flex items-center gap-1">
-                <Calendar class="h-4 w-4" />
-                <span>{{ new Date(selectedElection.startTime).toLocaleDateString() }}</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <Clock class="h-4 w-4" />
-                <span>{{ timeRemaining(selectedElection.endTime) }}</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <User class="h-4 w-4" />
-                <span
-                  >{{ selectedElection.creatorAddress.slice(0, 6) }}...{{
-                    selectedElection.creatorAddress.slice(-4)
-                  }}</span
-                >
-              </div>
+        <!-- Election Cards -->
+        <div v-if="filteredAndPaginatedElections.length === 0" class="text-center py-12">
+          <p class="text-gray-400">No elections match your filters</p>
+        </div>
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div
+            v-for="election in filteredAndPaginatedElections"
+            :key="election.id"
+            @click="fetchElectionDetails(election.id)"
+            class="bg-gray-800 p-6 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors border border-gray-700 relative"
+          >
+            <!-- Voted indicator -->
+            <div
+              v-if="election.hasVoted"
+              class="absolute top-2 right-2 bg-green-600 rounded-full p-1.5"
+            >
+              <Check class="h-4 w-4 text-white" />
             </div>
-          </div>
-        </div>
-
-        <!-- Voted status indicator -->
-        <div
-          v-if="selectedElection.hasVoted"
-          class="bg-green-900/30 border border-green-900 rounded-md p-4 mb-6"
-        >
-          <div class="flex items-center gap-2">
-            <Check class="h-5 w-5 text-green-400" />
-            <span class="text-green-400">You have already voted in this election</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <p class="text-gray-300 mb-2">
-              <span class="font-semibold">Type:</span>
-              {{ selectedElection.isPrivate ? 'Private' : 'Public' }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Public Key Display -->
-      <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
-        <h2 class="text-xl font-bold mb-4 text-white">Vote Encryption</h2>
-        <div class="bg-gray-700 p-4 rounded-md mb-4">
-          <p class="text-sm text-gray-300 font-mono break-all">{{ selectedElection.publicKey }}</p>
-        </div>
-        <p class="text-sm text-gray-400">
-          Your vote will be encrypted with this public key before submission to ensure privacy.
-        </p>
-      </div>
-
-      <!-- Private Election Verification -->
-      <div
-        v-if="selectedElection.isPrivate"
-        class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8"
-      >
-        <h2 class="text-xl font-bold mb-6 text-white">Whitelist Verification</h2>
-        <div
-          v-if="!appKitAccount.value?.address"
-          class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-4"
-        >
-          <p class="text-yellow-400 text-center">
-            Connect your wallet to verify your whitelist status for this private election.
-          </p>
-        </div>
-        <div v-else>
-          <div v-if="idVerificationStatus === 'loading'" class="text-center py-4">
-            <p class="text-gray-400">Verifying your whitelist status...</p>
-          </div>
-          <div v-else>
-            <div v-if="merkleProof" class="mb-4">
-              <p class="text-sm text-gray-400 mb-2">Your whitelist verification:</p>
-              <div class="flex items-center gap-2">
-                <CheckCircle
-                  v-if="idVerificationStatus === 'approved'"
-                  class="h-5 w-5 text-green-400"
-                />
-                <X v-else class="h-5 w-5 text-red-400" />
+            <div class="flex flex-col h-full">
+              <div class="flex-1">
+                <h2 class="text-xl font-semibold text-white mb-2">{{ election.title }}</h2>
+                <div class="flex items-center gap-2 mt-2 text-sm text-gray-400">
+                  <Calendar class="h-4 w-4" />
+                  <span>{{ new Date(election.startTime).toLocaleDateString() }}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-1 text-sm text-gray-400">
+                  <Clock class="h-4 w-4" />
+                  <span>{{ timeRemaining(election.endTime) }}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-1 text-sm text-gray-400">
+                  <User class="h-4 w-4" />
+                  <span
+                    >{{ election.creatorAddress.slice(0, 6) }}...{{
+                      election.creatorAddress.slice(-4)
+                    }}</span
+                  >
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between">
+                <div class="flex items-center gap-1 text-sm">
+                  <Lock v-if="election.isPrivate" class="h-4 w-4 text-red-400" />
+                  <span v-if="election.isPrivate" class="text-red-400">Private</span>
+                  <span v-else class="text-green-400">Public</span>
+                </div>
                 <span
-                  :class="idVerificationStatus === 'approved' ? 'text-green-400' : 'text-red-400'"
+                  class="text-xs px-2 py-1 rounded-full"
+                  :class="
+                    isElectionActive(election)
+                      ? 'bg-green-900 text-green-400'
+                      : 'bg-gray-700 text-gray-400'
+                  "
                 >
-                  {{
-                    idVerificationStatus === 'approved'
-                      ? 'Verified: You are whitelisted!'
-                      : 'Not verified'
-                  }}
+                  {{ isElectionActive(election) ? 'Active' : 'Inactive' }}
                 </span>
               </div>
             </div>
           </div>
         </div>
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="flex justify-center items-center gap-4">
+          <button
+            @click="prevPage"
+            :disabled="currentPage === 1"
+            class="p-2 rounded-md bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
+          >
+            <ChevronLeft class="h-5 w-5" />
+          </button>
+          <span class="text-gray-400">Page {{ currentPage }} of {{ totalPages }}</span>
+          <button
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+            class="p-2 rounded-md bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
+          >
+            <ChevronRight class="h-5 w-5" />
+          </button>
+        </div>
       </div>
-
-      <!-- Prominent Candidate Panel -->
-      <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
-        <h2 class="text-2xl font-bold mb-6 text-white">Candidates</h2>
-
-        <!-- Already voted message -->
-        <div
-          v-if="selectedElection.hasVoted"
-          class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
+      <!-- Election Detail View -->
+      <div v-else class="max-w-5xl mx-auto">
+        <button
+          @click="selectedElection = null"
+          class="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
-          <div class="flex items-center gap-2">
-            <AlertTriangle class="h-5 w-5 text-yellow-400" />
-            <span class="text-yellow-400">You have already voted in this election</span>
+          <ArrowLeft class="h-5 w-5" />
+          <span>Back to Elections</span>
+        </button>
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
+          <div class="flex justify-between items-start mb-6">
+            <div>
+              <h1 class="text-3xl font-bold text-white mb-2">{{ selectedElection.title }}</h1>
+              <div class="flex items-center gap-4 text-gray-400">
+                <div class="flex items-center gap-1">
+                  <Calendar class="h-4 w-4" />
+                  <span>{{ new Date(selectedElection.startTime).toLocaleDateString() }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <Clock class="h-4 w-4" />
+                  <span>{{ timeRemaining(selectedElection.endTime) }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <User class="h-4 w-4" />
+                  <span
+                    >{{ selectedElection.creatorAddress.slice(0, 6) }}...{{
+                      selectedElection.creatorAddress.slice(-4)
+                    }}</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <p class="text-gray-300 mb-2">
+                <span class="font-semibold">Type:</span>
+                {{ selectedElection.isPrivate ? 'Private' : 'Public' }}
+              </p>
+            </div>
           </div>
         </div>
-
-        <div
-          v-if="!isElectionActive(selectedElection)"
-          class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
-        >
-          <p class="text-yellow-400 text-center">
-            This election is not currently active for voting.
+        <!-- Public Key Display -->
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
+          <h2 class="text-xl font-bold mb-4 text-white">Vote Encryption</h2>
+          <div class="bg-gray-700 p-4 rounded-md mb-4">
+            <p class="text-sm text-gray-300 font-mono break-all">
+              {{ selectedElection.publicKey }}
+            </p>
+          </div>
+          <p class="text-sm text-gray-400">
+            Your vote will be encrypted with this public key before submission to ensure privacy.
           </p>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Private Election Verification -->
+        <div
+          v-if="selectedElection.isPrivate"
+          class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8"
+        >
+          <h2 class="text-xl font-bold mb-6 text-white">Whitelist Verification</h2>
           <div
-            v-for="candidate in selectedElection.candidates"
-            :key="candidate.name"
-            @click="
-              isElectionActive(selectedElection) && !selectedElection.hasVoted
-                ? (selectedCandidate = candidate.name)
-                : null
-            "
-            class="relative p-6 rounded-lg border-2 transition-all"
-            :class="[
-              selectedCandidate === candidate.name &&
-              isElectionActive(selectedElection) &&
-              !selectedElection.hasVoted
-                ? 'border-blue-400 bg-gray-700/50 cursor-pointer'
-                : 'border-gray-700 hover:border-gray-500 cursor-pointer',
-              !isElectionActive(selectedElection) || selectedElection.hasVoted
-                ? 'opacity-60 cursor-not-allowed'
-                : '',
-            ]"
+            v-if="!appKitAccount.value?.address"
+            class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-4"
           >
-            <!-- Selection indicator -->
-            <div
-              v-if="
-                selectedCandidate === candidate.name &&
-                isElectionActive(selectedElection) &&
-                !selectedElection.hasVoted
-              "
-              class="absolute -top-3 -right-3 bg-blue-600 rounded-full p-2 shadow-lg"
-            >
-              <Fingerprint class="h-6 w-6 text-white" />
+            <p class="text-yellow-400 text-center">
+              Connect your wallet to verify your whitelist status for this private election.
+            </p>
+          </div>
+          <div v-else>
+            <div v-if="idVerificationStatus === 'loading'" class="text-center py-4">
+              <p class="text-gray-400">Verifying your whitelist status...</p>
             </div>
-
-            <div class="flex flex-col items-center text-center">
-              <img
-                :src="candidate.picture"
-                alt="Candidate"
-                class="h-24 w-24 rounded-full object-cover mb-4 border-4"
-                :class="[
-                  selectedCandidate === candidate.name &&
-                  isElectionActive(selectedElection) &&
-                  !selectedElection.hasVoted
-                    ? 'border-blue-400'
-                    : 'border-gray-500',
-                  !isElectionActive(selectedElection) || selectedElection.hasVoted
-                    ? 'opacity-50'
-                    : '',
-                ]"
-              />
-              <h3 class="text-xl font-bold mb-2 text-white">{{ candidate.name }}</h3>
-              <div class="bg-gray-700 p-4 rounded-lg w-full text-left">
-                <p class="text-gray-300">{{ candidate.manifesto }}</p>
+            <div v-else>
+              <div v-if="merkleProof" class="mb-4">
+                <p class="text-sm text-gray-400 mb-2">Your whitelist verification:</p>
+                <div class="flex items-center gap-2">
+                  <CheckCircle
+                    v-if="idVerificationStatus === 'approved'"
+                    class="h-5 w-5 text-green-400"
+                  />
+                  <X v-else class="h-5 w-5 text-red-400" />
+                  <span
+                    :class="idVerificationStatus === 'approved' ? 'text-green-400' : 'text-red-400'"
+                  >
+                    {{
+                      idVerificationStatus === 'approved'
+                        ? 'Verified: You are whitelisted!'
+                        : 'Not verified'
+                    }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- ID Verification Section -->
-      <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
-        <h2 class="text-xl font-bold mb-6 text-white">Verify Your ID</h2>
-
-        <!-- Already voted message -->
-        <div
-          v-if="selectedElection.hasVoted"
-          class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
-        >
-          <div class="flex items-center gap-2">
-            <AlertTriangle class="h-5 w-5 text-yellow-400" />
-            <span class="text-yellow-400">You have already voted in this election</span>
-          </div>
-        </div>
-
-        <!-- ID Card Upload -->
-        <div
-          @dragover="onDragOver"
-          @dragleave="onDragLeave"
-          @drop="onDrop"
-          class="border-2 border-dashed rounded-lg p-12 text-center mb-6 transition-colors"
-          :class="isDragging ? 'border-blue-400 bg-gray-700' : 'border-gray-600'"
-        >
-          <Upload class="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <p class="text-gray-300">
-            {{
-              idCardFile
-                ? `File ready: ${idCardFile.name}`
-                : 'Drag and drop your ID card image here or click to upload'
-            }}
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            @change="(e) => idCardFile = (e.target as HTMLInputElement).files?.[0] || null"
-            class="hidden"
-            id="id-upload"
-            :disabled="selectedElection.hasVoted"
-          />
-          <label
-            for="id-upload"
-            class="mt-4 inline-block px-4 py-2 bg-gray-700 rounded-md cursor-pointer hover:bg-gray-600 transition-colors"
-            :class="selectedElection.hasVoted ? 'opacity-50 cursor-not-allowed' : ''"
-          >
-            Browse Files
-          </label>
-        </div>
-
-        <div v-if="idCardFile && !selectedElection.hasVoted" class="mb-6">
-          <button
-            @click="verifyIDCard"
-            :disabled="idVerificationStatus === 'loading' || selectedElection.hasVoted"
-            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600"
-          >
-            {{ idVerificationStatus === 'loading' ? 'Verifying...' : 'Verify ID' }}
-          </button>
-
+        <!-- Prominent Candidate Panel -->
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 mb-8">
+          <h2 class="text-2xl font-bold mb-6 text-white">Candidates</h2>
+          <!-- Already voted message -->
           <div
-            v-if="idVerificationStatus === 'approved'"
-            class="mt-4 flex items-center gap-2 text-green-400"
+            v-if="selectedElection.hasVoted"
+            class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
           >
-            <CheckCircle class="h-5 w-5" />
-            <span>ID Approved! You may now vote.</span>
+            <div class="flex items-center gap-2">
+              <AlertTriangle class="h-5 w-5 text-yellow-400" />
+              <span class="text-yellow-400">
+                You have already voted in this election.
+                <span v-if="isElectionActive(selectedElection)">
+                  Time remaining: {{ timeUntilElectionEnds(selectedElection.endTime) }}
+                </span>
+                <span v-else>
+                  This election is now closed. Check back for new elections.
+                </span>
+              </span>
+            </div>
           </div>
           <div
-            v-if="idVerificationStatus === 'rejected'"
-            class="mt-4 flex items-center gap-2 text-red-400"
+            v-if="!isElectionActive(selectedElection)"
+            class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
           >
-            <X class="h-5 w-5" />
-            <span>ID Rejected. Please try again with a valid ID.</span>
+            <p class="text-yellow-400 text-center">
+              This election is not currently active for voting.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div
+              v-for="candidate in selectedElection.candidates"
+              :key="candidate.name"
+              @click="
+                isElectionActive(selectedElection) && !selectedElection.hasVoted
+                  ? (selectedCandidate = candidate.name)
+                  : null
+              "
+              class="relative p-6 rounded-lg border-2 transition-all"
+              :class="[
+                selectedCandidate === candidate.name &&
+                isElectionActive(selectedElection) &&
+                !selectedElection.hasVoted
+                  ? 'border-blue-400 bg-gray-700/50 cursor-pointer'
+                  : 'border-gray-700 hover:border-gray-500 cursor-pointer',
+                !isElectionActive(selectedElection) || selectedElection.hasVoted
+                  ? 'opacity-60 cursor-not-allowed'
+                  : '',
+              ]"
+              :title="selectedElection.hasVoted ? 'You have already voted' : ''"
+            >
+              <!-- Selection indicator -->
+              <div
+                v-if="
+                  selectedCandidate === candidate.name &&
+                  isElectionActive(selectedElection) &&
+                  !selectedElection.hasVoted
+                "
+                class="absolute -top-3 -right-3 bg-blue-600 rounded-full p-2 shadow-lg"
+              >
+                <Fingerprint class="h-6 w-6 text-white" />
+              </div>
+              <div class="flex flex-col items-center text-center">
+                <img
+                  :src="candidate.picture"
+                  alt="Candidate"
+                  class="h-24 w-24 rounded-full object-cover mb-4 border-4"
+                  :class="[
+                    selectedCandidate === candidate.name &&
+                    isElectionActive(selectedElection) &&
+                    !selectedElection.hasVoted
+                      ? 'border-blue-400'
+                      : 'border-gray-500',
+                    !isElectionActive(selectedElection) || selectedElection.hasVoted
+                      ? 'opacity-50'
+                      : '',
+                  ]"
+                />
+                <h3 class="text-xl font-bold mb-2 text-white">{{ candidate.name }}</h3>
+                <div class="bg-gray-700 p-4 rounded-lg w-full text-left">
+                  <p class="text-gray-300">{{ candidate.manifesto }}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        <!-- Vote Submission -->
-        <div
-          v-if="
-            idVerificationStatus === 'approved' &&
-            selectedCandidate &&
-            isElectionActive(selectedElection) &&
-            !selectedElection.hasVoted
-          "
-          class="pt-6 border-t border-gray-700"
-        >
-          <button
-            @click="submitVote"
-            :disabled="voteSubmissionStatus === 'loading'"
-            class="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-500 transition-colors disabled:bg-gray-600 w-full"
-          >
-            {{
-              voteSubmissionStatus === 'loading' ? 'Submitting...' : `Vote for ${selectedCandidate}`
-            }}
-          </button>
+        <!-- ID Verification Section -->
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-bold mb-6 text-white">Verify Your ID</h2>
+          <!-- Already voted message -->
           <div
-            v-if="voteSubmissionStatus === 'success'"
-            class="mt-4 flex items-center gap-2 text-green-400"
+            v-if="selectedElection.hasVoted"
+            class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-6"
           >
-            <CheckCircle class="h-5 w-5" />
-            <span>Vote submitted successfully!</span>
+            <div class="flex items-center gap-2">
+              <AlertTriangle class="h-5 w-5 text-yellow-400" />
+              <span class="text-yellow-400">
+                You have already voted in this election.
+                <br>
+                <span v-if="isElectionActive(selectedElection)">
+                  Time remaining: {{ timeUntilElectionEnds(selectedElection.endTime) }}
+                </span>
+                <span v-else>
+                  This election is now closed. Check back for new elections.
+                </span>
+              </span>
+            </div>
+          </div>
+          <!-- ID Card Upload -->
+          <div
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+            class="border-2 border-dashed rounded-lg p-12 text-center mb-6 transition-colors"
+            :class="isDragging ? 'border-blue-400 bg-gray-700' : 'border-gray-600'"
+          >
+            <Upload class="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <p class="text-gray-300">
+              {{
+                idCardFile
+                  ? `File ready: ${idCardFile.name}`
+                  : 'Drag and drop your ID card image here or click to upload'
+              }}
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              @change="(e) => idCardFile = (e.target as HTMLInputElement).files?.[0] || null"
+              class="hidden"
+              id="id-upload"
+              :disabled="selectedElection.hasVoted"
+            />
+            <label
+              for="id-upload"
+              class="mt-4 inline-block px-4 py-2 bg-gray-700 rounded-md cursor-pointer hover:bg-gray-600 transition-colors"
+              :class="selectedElection.hasVoted ? 'opacity-50 cursor-not-allowed' : ''"
+            >
+              Browse Files
+            </label>
+          </div>
+          <div v-if="idCardFile && !selectedElection.hasVoted" class="mb-6">
+            <button
+              @click="verifyIDCard"
+              :disabled="idVerificationStatus === 'loading' || selectedElection.hasVoted"
+              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600"
+            >
+              {{ idVerificationStatus === 'loading' ? 'Verifying...' : 'Verify ID' }}
+            </button>
+            <div
+              v-if="idVerificationStatus === 'approved'"
+              class="mt-4 flex items-center gap-2 text-green-400"
+            >
+              <CheckCircle class="h-5 w-5" />
+              <span>ID Approved! You may now vote.</span>
+            </div>
+            <div
+              v-if="idVerificationStatus === 'rejected'"
+              class="mt-4 flex items-center gap-2 text-red-400"
+            >
+              <X class="h-5 w-5" />
+              <span>ID Rejected. Please try again with a valid ID.</span>
+            </div>
+          </div>
+          <!-- Vote Submission -->
+          <div
+            v-if="
+              idVerificationStatus === 'approved' &&
+              selectedCandidate &&
+              isElectionActive(selectedElection) &&
+              !selectedElection.hasVoted
+            "
+            class="pt-6 border-t border-gray-700"
+          >
+            <button
+              @click="submitVote"
+              :disabled="voteSubmissionStatus === 'loading'"
+              class="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-500 transition-colors disabled:bg-gray-600 w-full"
+            >
+              {{
+                voteSubmissionStatus === 'loading'
+                  ? 'Submitting...'
+                  : `Vote for ${selectedCandidate}`
+              }}
+            </button>
+            <div
+              v-if="voteSubmissionStatus === 'success'"
+              class="mt-4 flex items-center gap-2 text-green-400"
+            >
+              <CheckCircle class="h-5 w-5" />
+              <span>Vote submitted successfully!</span>
+            </div>
+            <div
+              v-if="voteSubmissionStatus === 'error'"
+              class="mt-4 flex items-center gap-2 text-red-400"
+            >
+              <X class="h-5 w-5" />
+              <span>Failed to submit vote. Please try again.</span>
+            </div>
           </div>
           <div
-            v-if="voteSubmissionStatus === 'error'"
-            class="mt-4 flex items-center gap-2 text-red-400"
+            v-else-if="isElectionActive(selectedElection) && !selectedElection.hasVoted"
+            class="pt-6 border-t border-gray-700 text-center text-gray-400"
           >
-            <X class="h-5 w-5" />
-            <span>Failed to submit vote. Please try again.</span>
+            <p v-if="!selectedCandidate">Please select a candidate to vote for</p>
+            <p v-else-if="idVerificationStatus !== 'approved'">
+              Please verify your ID to complete voting
+            </p>
           </div>
-        </div>
-
-        <div
-          v-else-if="isElectionActive(selectedElection) && !selectedElection.hasVoted"
-          class="pt-6 border-t border-gray-700 text-center text-gray-400"
-        >
-          <p v-if="!selectedCandidate">Please select a candidate to vote for</p>
-          <p v-else-if="idVerificationStatus !== 'approved'">
-            Please verify your ID to complete voting
-          </p>
         </div>
       </div>
     </div>
+    <div v-else>Kindly connect your wallet!👷🏾</div>
   </div>
 </template>
