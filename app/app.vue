@@ -114,7 +114,7 @@ const items = [
             class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-list"
             to="/admin-elections"
-            v-if="appKitAccount"
+            v-if="appKitAccount?.address"
           >
             My Elections
           </UButton>
@@ -122,7 +122,7 @@ const items = [
             class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-newspaper"
             to="/vote-election"
-            v-if="appKitAccount"
+            v-if="appKitAccount?.address"
           >
             Vote
           </UButton>
@@ -151,8 +151,8 @@ const items = [
         </div>
       </header>
 
-      <NuxtPage v-if="appKitAccount"/>
-      <div>Kindly connect your wallet! :)</div>
+      <NuxtPage v-if="appKitAccount?.address"/>
+      <div v-else>Kindly connect your wallet! :)</div>
 
       <footer class="mt-auto py-4 text-center text-[#6BA392] text-sm select-none">
         © 2025 SolaVote — built with ❤️ by TobeTek

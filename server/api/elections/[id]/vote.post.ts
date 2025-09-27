@@ -1,9 +1,7 @@
 // server/api/elections/[id]/vote.post.ts
 import { useValidatedBody, z } from 'h3-zod'
-import { defineEventHandler, readBody } from 'h3'
+import { defineEventHandler } from 'h3'
 import { eq } from 'drizzle-orm'
-import { decryptVote } from '~/utils/crypto'
-import MerkleTree from 'merkletreejs'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { getAddressBytes } from '~~/common'
 
@@ -63,8 +61,10 @@ export default defineEventHandler(async (event) => {
 
   // Check if voter has already voted
   const existingVote = await db.query.votes.findFirst({
-    where: (votes, { eq, and }) =>
-      and(eq(votes.electionId, electionId), eq(votes.voterAddress, voterAddress)),
+    where: and(
+      eq(tables.votes.electionId, electionId),
+      eq(tables.votes.voterAddress, voterAddress)
+    ),
   })
 
   if (existingVote) {

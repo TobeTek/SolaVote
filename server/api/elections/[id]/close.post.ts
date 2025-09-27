@@ -34,7 +34,7 @@ export default eventHandler(async (event) => {
 
   // Get all votes for this election
   const allVotes = await db.query.votes.findMany({
-    where: (votes, { eq }) => eq(votes.electionId, id),
+    where: (votes, { eq }) => eq(tables.votes.electionId, id),
   })
 
   if (allVotes.length === 0) {
