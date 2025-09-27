@@ -195,11 +195,11 @@ const submitVote = async () => {
       selectedElection.value.publicKey
     )
 
-    const result = await $fetch('/api/votes', {
+    const result = await $fetch(`/api/election/${selectedElection.value.id}/vote`, {
       method: 'POST',
       body: {
         electionId: selectedElection.value.id,
-        encryptedVote,
+        encryptedVote: JSON.stringify(encryptedVote),
         voterAddress: appKitAccount.value?.address,
         merkleProof: merkleProof.value,
       },

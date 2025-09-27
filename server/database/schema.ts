@@ -39,3 +39,25 @@ export const elections = sqliteTable('elections', {
     .default({ root: '', leaves: [], layers: [] }), // Store entire Merkle tree
   createdAt: integer('created_at', { mode: 'timestamp' }).default(new Date()),
 })
+
+export const votes = sqliteTable('votes', {
+  id: text('id').primaryKey(),
+  electionId: text('election_id')
+    .notNull()
+    .references(() => elections.id),
+  voterAddress: text('voter_address').notNull(),
+  encryptedVote: text('encrypted_vote').notNull(),
+  merkleProof: text('merkle_proof', { mode: 'json' }),
+  votedAt: integer('voted_at', { mode: 'timestamp' }).notNull(),
+})
+
+
+export const results = sqliteTable('results', {
+  id: text('id').primaryKey(),
+  electionId: text('election_id').notNull().references(() => elections.id),
+  totalVotes: integer('total_votes').notNull(),
+  results: text('results', { mode: 'json' }).notNull(),
+  winners: text('winners', { mode: 'json' }).notNull(),
+  closedAt: integer('closed_at', { mode: 'timestamp' }).notNull(),
+  decryptedVotes: text('decrypted_votes', { mode: 'json' })
+})
