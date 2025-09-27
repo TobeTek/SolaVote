@@ -124,7 +124,7 @@ onMounted(() => {
 })
 
 const connectWallet = () => {
-  alert('Connect Wallet clicked! (Integrate your wallet provider here)')
+  window.location.pathname = "/vote-";
 }
 </script>
 
@@ -151,12 +151,12 @@ const connectWallet = () => {
 
     <!-- Connect Wallet Button -->
     <div class="mt-24 flex justify-center">
-      <button
-        @click="connectWallet"
+      <UButton
+        to="/admin-elections"
         class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white font-bold text-2xl rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
       >
         Create an Election
-      </button>
+      </UButton>
     </div>
   </div>
 </template>

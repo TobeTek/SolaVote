@@ -6,7 +6,8 @@ import { solana, solanaDevnet, solanaTestnet } from '@reown/appkit/networks'
 import { createAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/vue'
 import { computed, watch } from 'vue'
 
-const address = useAppKitAccount({ namespace: 'solana' })
+
+const appKitAccount = useAppKitAccount({ namespace: 'solana' })
 const { connection } = useAppKitConnection()
 const { walletProvider } = useAppKitProvider<Provider>('solana')
 
@@ -54,17 +55,17 @@ const isDarkMode = computed({
 })
 
 const userSession = useUserSession()
-watch(address, async (newAddress) => {
-  if (!newAddress || address.value === newAddress) {
-    return
-  }
-  await $fetch('/api/auth/wallet', {
-    method: 'POST',
-    body: {
-      walletAddress: newAddress,
-    },
-  })
-})
+// watch(address, async (newAddress) => {
+//   if (!newAddress || address.value === newAddress) {
+//     return
+//   }
+//   await $fetch('/api/auth/wallet', {
+//     method: 'POST',
+//     body: {
+//       walletAddress: newAddress,
+//     },
+//   })
+// })
 
 useHead({
   htmlAttrs: { lang: 'en' },
@@ -110,19 +111,18 @@ const items = [
             <appkit-button />
           </client-only>
           <UButton
-            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-list"
             to="/admin-elections"
-            v-if="address"
+            v-if="appKitAccount"
           >
             My Elections
           </UButton>
           <UButton
-            @click="handleWalletButtonClick"
-            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold text-lg rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+            class="px-8 py-4 bg-gradient-to-r from-[#6EE7B7] to-[#3B82F6] text-white text-nowrap font-bold rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
             icon="i-lucide-newspaper"
             to="/vote-election"
-            v-if="address"
+            v-if="appKitAccount"
           >
             Vote
           </UButton>
@@ -151,7 +151,8 @@ const items = [
         </div>
       </header>
 
-      <NuxtPage />
+      <NuxtPage v-if="appKitAccount"/>
+      <div>Kindly connect your wallet! :)</div>
 
       <footer class="mt-auto py-4 text-center text-[#6BA392] text-sm select-none">
         © 2025 SolaVote — built with ❤️ by TobeTek
