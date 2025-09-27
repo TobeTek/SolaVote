@@ -4,6 +4,8 @@ import { defineEventHandler, readBody } from 'h3'
 import { eq } from 'drizzle-orm'
 import { decryptVote } from '~/utils/crypto'
 import MerkleTree from 'merkletreejs'
+import {sha256} from '@noble/hashes/sha2.js'
+import { getAddressBytes } from '~~/common'
 
 export default defineEventHandler(async (event) => {
     // Parse request body
@@ -99,12 +101,28 @@ export default defineEventHandler(async (event) => {
 
 // Helper function to verify merkle proof (simplified - implement proper verification)
 function verifyMerkleProof(address: string, proof: string[], root: string): boolean {
-  // In a real implementation, you would:
-  // 1. Hash the address
-  // 2. Compute the root from the proof
-  // 3. Compare with the stored root
-  // This is a placeholder that should be replaced with actual verification
+  try {
+    // 1. Hash the address (same as how leaves were created)
+    const leaf = sha256(getAddressBytes(address)).toString()
 
-  // For demo purposes, we'll just return true
-  return true
+    // 2. Compute the root from the proof
+    let computedHash = leaf
+
+    for (const proofElement of proof) {
+      // Convert hex strings to Buffer
+      const left = Buffer.from(computedHash, 'hex')
+      const right = Buffer.from(proofElement, 'hex')
+
+      // Concatenate and hash (sort to ensure consistent order)
+      const concatenated = Buffer.concat([left, right].sort(Buffer.compare))
+      computedHash = sha256(concatenated).toString()
+    }
+
+    // 3. Compare with the stored root
+    return computedHash === root
+
+  } catch (error) {
+    console.error('Merkle proof verification error:', error)
+    return false
+  }
 }

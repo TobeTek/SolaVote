@@ -76,7 +76,7 @@ export default eventHandler(async (event) => {
   const results = candidates.map((candidate) => ({
     candidate,
     votes: tally[candidate] || 0,
-    percentage: 0, // Will be calculated after we have all counts
+    percentage: 0,
   }))
 
   // Calculate total valid votes
