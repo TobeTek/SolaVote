@@ -1,88 +1,72 @@
-# Manage your Todos with Atidone ☑️
+# SolaVote: Secure, Scalable, Transparent Elections on Solana
 
-Circom Circuits: https://github.com/vocdoni/z-ircuits
-- https://blog.o1labs.org/zero-knowledge-proofs-for-voting-3c6a6d5d89db
-- https://github.com/advaita-saha/zk-Voting
+SolaVote combines the speed and security of the **Solana** blockchain with **Homomorphic Encryption**, **Merkle Proofs**, **Cloudflare AI** for secure, verifiable, and transparent electronic voting.
 
-A demonstration using [Nuxt](https://nuxt.com) with server-side rendering on the edge, authentication and database querying using [Cloudflare D1](https://developers.cloudflare.com/d1/) with [Drizzle ORM](https://orm.drizzle.team/).
+## 🚀 Getting Started
 
-[![Deploy to NuxtHub](https://hub.nuxt.com/button.svg)](https://admin.hub.nuxt.com/new?template=todos)
+Follow these steps to set up and run both the client-side UI and the Solana smart contract program.
 
-## Features
+### Prerequisites
 
-- [Server-Side Rendering on the Edge](https://nuxt.com/blog/nuxt-on-the-edge)
-- Authentication backed-in using [nuxt-auth-utils](https://github.com/atinux/nuxt-auth-utils)
-- Leverage [Cloudflare D1](https://developers.cloudflare.com/d1/) as database with [drizzle ORM](https://orm.drizzle.team/) using [`hubDatabase()`](https://hub.nuxt.com/docs/storage/database)
-- [Automatic database migrations](https://hub.nuxt.com/docs/features/database#database-migrations) in development & when deploying
-- User interface made with [Nuxt UI](https://ui.nuxt.com)
-- Embed [Drizzle Studio](https://orm.drizzle.team/drizzle-studio/overview/) in the [Nuxt DevTools](https://devtools.nuxt.com)
-- Cache invalidation and Optimistic UI with [Pinia Colada](https://pinia-colada.esm.dev)
+You'll need **Node.js**, **Rust/Cargo**, the **Solana Tool Suite**, and the **Anchor Framework** installed.
 
-## Live demo
+### 1\. Program Setup
 
-https://todos.nuxt.dev
+We use `pnpm` as our package manager. Install and enable it using `corepack`, then install dependencies and start the UI:
 
-https://github.com/atinux/atidone/assets/904724/5f3bee55-dbae-4329-8057-7d0e16e92f81
+1.  Enable Corepack:
+    ```bash
+    corepack enable
+    ```
+2.  Install `pnpm`:
+    ```bash
+    corepack install pnpm
+    ```
+3.  Install dependencies:
+    ```bash
+    pnpm install
+    ```
+4.  Start the local development server for the SolaVote UI:
+    ```bash
+    pnpm run dev
+    ```
 
-To see an example using Passkeys (WebAuthn) for authentication, checkout [todo-passkeys](https://github.com/atinux/todo-passkeys).
+-----
 
-## Setup
+## 2\. Smart Contract Commands
 
-Make sure to install the dependencies using [pnpm](https://pnpm.io/):
+The smart contract code is in the `solavote-contracts` directory. Use the `anchor` tool for development:
 
-```bash
-pnpm i
-```
+1.  Navigate to the contract directory and compile the Solana program:
+    ```bash
+    cd solavote-contracts && anchor build
+    ```
+2.  Run the unit tests for the Solana program:
+    ```bash
+    cd solavote-contracts && anchor test
+    ```
+3.  Deploy the program to a local validator or a specified network:
+    ```bash
+    cd solavote-contracts && anchor deploy
+    ```
 
-Create a [GitHub Oauth Application](https://github.com/settings/applications/new) with:
-- Homepage url: `http://localhost:3000`
-- Callback url: `http://localhost:3000/api/auth/github`
+-----
 
-Add the variables in the `.env` file:
+## ⚙️ Key Technical Details
 
-```bash
-NUXT_OAUTH_GITHUB_CLIENT_ID="my-github-oauth-app-id"
-NUXT_OAUTH_GITHUB_CLIENT_SECRET="my-github-oauth-app-secret"
-```
+### Solana Program ID
 
-To create sealed sessions, you also need to add `NUXT_SESSION_PASSWORD` in the `.env` with at least 32 characters:
+This is the public key for the deployed SolaVote program on the DevNet:
 
-```bash
-NUXT_SESSION_PASSWORD="your-super-long-secret-for-session-encryption"
-```
+**Solana Program ID:** [`SoLaVoTe1234567890abcdefghijklmnopqrstuvwx`](https://solscan.io/account/Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6?cluster=devnet)
 
-## Development
+-----
 
-Start the development server on http://localhost:3000
+## 🌐 Project Links
 
-```bash
-npm run dev
-```
-
-In the Nuxt DevTools, you can see your tables by clicking on the Hub Database tab:
-
-https://github.com/atinux/atidone/assets/904724/7ece3f10-aa6f-43d8-a941-7ca549bc208b
-
-## Deploy
-
-You can deploy this project on your Cloudflare account for free and with zero configuration using [NuxtHub](https://hub.nuxt.com).
-
-```bash
-npx nuxthub deploy
-```
-
-It's also possible to leverage Cloudflare Pages CI for deploying, learn more about the different options on https://hub.nuxt.com/docs/getting-started/deploy
-
-## Remote Storage
-
-Once you deployed your project, you can connect to your remote database locally running:
-  
-```bash
-pnpm dev --remote
-```
-
-Learn more about remote storage on https://hub.nuxt.com/docs/getting-started/remote-storage
-
-## License
-
-[MIT License](./LICENSE)
+| Resource | URL |
+| :--- | :--- |
+| **Live Project UI URL** | `https://app.solavote.io` |
+| **Pitch Document URL** | `https://docsend.com/solavote-pitch` |
+| **Demo Video URL** | `https://youtu.be/solavote-demo-video` |
+| **Pitch Video URL** | `https://youtu.be/solavote-pitch-video` |

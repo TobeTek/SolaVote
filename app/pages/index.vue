@@ -11,24 +11,28 @@ const scenes = [
     title:
       'The <span class="highlight-text" data-color="#6BA392">UNIABUJA</span> Student Gov Election <br> <em>was crippled.</em>',
     content:
-      '<p class="text-xl">Hours of waiting, low trust, fake ballots rampant, and no real transparency. The system is broken.</p>',
+      '<p class="text-xl">Hours of waiting, low trust, fake ballots rampant, and no real transparency. The system doesn\'t work.</p>',
   },
   {
     id: 'solution',
     title:
       'What if <span class="highlight-text" data-color="#1E88A8">SolaVote</span> existed?<br><em>The blockchain-powered voting platform.</em>',
     content:
-      '<p class="text-xl">Transparent, fast, tamper-proof, and secure voting from anywhere, anytime.</p>',
+      `
+      <p class="text-xl">Transparent, fast, tamper-proof, and secure voting from anywhere, anytime.</p>
+      <p class="text-xl">Only. Possible. On. Solana.</p>
+      `,
   },
   {
     id: 'features',
     title: 'Modern <span class="highlight-text" data-color="#6BA392">Features</span> you will love',
     content: `
       <ul class="list-disc pl-6 space-y-3 text-xl">
-        <li>Fast voting from any device</li>
+        <li>Fast and secure voting from anywhere and any device</li>
+        <li>AI-powered ID verication to automate the process</li>
+        <li>Simple and accessible on-ramping flow</li>
         <li>Blockchain security and provable transparency</li>
         <li>Instant vote tally and public audit logs</li>
-        <li>Easy voter registration and verified identities</li>
       </ul>
     `,
   },

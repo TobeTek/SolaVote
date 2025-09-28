@@ -12,7 +12,6 @@ declare_id!("Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6");
 pub mod solavote_program {
     use super::*;
 
-    /// Creator creates a new election, initially closed without whitelist
     pub fn create_election(
         ctx: Context<CreateElection>,
         title: String,
@@ -25,14 +24,13 @@ pub mod solavote_program {
         election.is_private = is_private;
         election.public_key = public_key;
         election.merkle_root = None;
-        election.open = false; // Voting not started yet
+        election.open = false;
         election.bump = ctx.bumps.election;
         election.voter_count = 0;
-        election.admins = vec![*ctx.accounts.creator.key]; // Initial admin is creator
+        election.admins = vec![*ctx.accounts.creator.key];
         Ok(())
     }
 
-    /// An admin starts election voting and sets the whitelist Merkle root if private
     pub fn start_election(
         ctx: Context<StartElection>,
         merkle_root: Option<[u8; 32]>,
@@ -47,7 +45,6 @@ pub mod solavote_program {
         Ok(())
     }
 
-    /// Cast vote with encrypted vote and Merkle proof (for private ballots)
     pub fn cast_vote(
         ctx: Context<CastVote>,
         encrypted_vote: Vec<u8>,
@@ -83,14 +80,6 @@ pub mod solavote_program {
         vote_data.bump = ctx.bumps.vote_data;
 
         // Mint NFT as proof of voting; assumes NFT token account (ATA) exists for user
-        let election_seeds = &[
-            b"election",
-            election.authority.as_ref(),
-            election.title.as_bytes(),
-            &[election.bump],
-        ];
-        // let signer_seeds = &[&election_seeds[..]];
-
         // Use the mint authority PDA's seeds for signing the CPI
         let binding = election.key();
         let mint_seeds = &[b"nft-mint", binding.as_ref(), &[ctx.bumps.nft_mint]];
@@ -112,7 +101,6 @@ pub mod solavote_program {
         Ok(())
     }
 
-    /// Close election, only admins can do this
     pub fn close_election(ctx: Context<CloseElection>) -> Result<()> {
         let election = &mut ctx.accounts.election;
         require!(
@@ -123,7 +111,6 @@ pub mod solavote_program {
         Ok(())
     }
 
-    /// Add a new admin (optional)
     pub fn add_admin(ctx: Context<ManageAdmins>, new_admin: Pubkey) -> Result<()> {
         let election = &mut ctx.accounts.election;
         require!(
@@ -303,7 +290,6 @@ mod tests {
         Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111")
     }
 
-    // Helper to create an Election with default values
     fn create_default_election() -> Election {
         Election {
             authority: dummy_pubkey(),
@@ -347,7 +333,6 @@ mod tests {
     #[test]
     fn test_start_election_authorized() {
         let mut election = create_default_election();
-        // Simulate admin call
         let admin = election.admins[0];
         assert!(election.admins.contains(&admin));
         election.open = false;
@@ -362,8 +347,6 @@ mod tests {
 
     #[test]
     fn test_verify_merkle_proof() {
-        // Use a sample leaf, root, and proof to validate behavior
-        // Here, hardcode or reuse your merkle_proof::verify_merkle_proof with mock data
         let leaf: [u8; 32] = [0u8; 32];
         let root: [u8; 32] = leaf;
         let proof: Vec<[u8; 32]> = vec![];
