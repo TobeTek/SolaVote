@@ -139,9 +139,9 @@ const fetchElections = async () => {
 const fetchElectionDetails = async (id: string) => {
   try {
     selectedElection.value = await $fetch(`/api/elections/${id}`, {
-      params: { userAddress: appKitAccount.value?.address }
+      params: { userAddress: appKitAccount.value?.address },
     })
-    if (selectedElection.value.isPrivate && appKitAccount.value?.address) {
+    if (selectedElection.value?.isPrivate) {
       await fetchMerkleProof()
     }
   } catch (error) {
@@ -153,15 +153,19 @@ const fetchMerkleProof = async () => {
   if (!selectedElection.value?.isPrivate || !appKitAccount.value?.address) return
   try {
     idVerificationStatus.value = 'loading'
-    const { proof } = await $fetch(`/api/elections/${selectedElection.value.id}/proof`, {
-      method: 'POST',
-      body: { address: appKitAccount.value?.address },
-    })
-    merkleProof.value = proof
-    idVerificationStatus.value = 'idle'
+    const { proof, merkleRoot } = await $fetch(
+      `/api/elections/${selectedElection.value.id}/proof`,
+      {
+        method: 'POST',
+        body: { address: appKitAccount.value?.address },
+      }
+    )
+    merkleProof.value = [merkleRoot]
+    idVerificationStatus.value = 'approved'
   } catch (error) {
     console.error('Failed to fetch Merkle proof:', error)
     idVerificationStatus.value = 'rejected'
+    merkleProof.value = 'rejected'
   }
 }
 
@@ -430,12 +434,18 @@ watch([searchQuery, showPrivate, showPublic], () => {
         >
           <h2 class="text-xl font-bold mb-6 text-white">Whitelist Verification</h2>
           <div
-            v-if="!appKitAccount.value?.address"
+            v-if="!appKitAccount.address"
             class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-4"
           >
             <p class="text-yellow-400 text-center">
               Connect your wallet to verify your whitelist status for this private election.
             </p>
+          </div>
+          <div
+            v-else-if="!selectedElection.isActive"
+            class="bg-yellow-900/30 border border-yellow-900 rounded-md p-4 mb-4"
+          >
+            <p class="text-yellow-400 text-center">Election is not yet active for voting.</p>
           </div>
           <div v-else>
             <div v-if="idVerificationStatus === 'loading'" class="text-center py-4">
@@ -479,9 +489,7 @@ watch([searchQuery, showPrivate, showPublic], () => {
                 <span v-if="isElectionActive(selectedElection)">
                   Time remaining: {{ timeUntilElectionEnds(selectedElection.endTime) }}
                 </span>
-                <span v-else>
-                  This election is now closed. Check back for new elections.
-                </span>
+                <span v-else> This election is now closed. Check back for new elections. </span>
               </span>
             </div>
           </div>
@@ -562,13 +570,11 @@ watch([searchQuery, showPrivate, showPublic], () => {
               <AlertTriangle class="h-5 w-5 text-yellow-400" />
               <span class="text-yellow-400">
                 You have already voted in this election.
-                <br>
+                <br />
                 <span v-if="isElectionActive(selectedElection)">
                   Time remaining: {{ timeUntilElectionEnds(selectedElection.endTime) }}
                 </span>
-                <span v-else>
-                  This election is now closed. Check back for new elections.
-                </span>
+                <span v-else> This election is now closed. Check back for new elections. </span>
               </span>
             </div>
           </div>
@@ -675,6 +681,6 @@ watch([searchQuery, showPrivate, showPublic], () => {
         </div>
       </div>
     </div>
-    <div v-else>Kindly connect your wallet!👷🏾</div>
+    <h2 v-else>Kindly connect your wallet!👷🏾</h2>
   </div>
 </template>

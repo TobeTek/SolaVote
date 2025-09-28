@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 
 export default eventHandler(async (event) => {
   const { id, address } = event.context.params
-  const db = useDB(event)
+  const db = useDB()
 
   // Get current whitelist
   const current = await db.select({ whitelist: tables.elections.whitelist })
@@ -13,11 +13,11 @@ export default eventHandler(async (event) => {
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Election not found' })
 
   // Remove address
-  const updatedWhitelist = current.whitelist.filter(a => a !== address)
+  const updatedWhitelist = current.whitelist?.filter(a => a !== address)
 
-  return await db.update(elections)
+  return await db.update(tables.elections)
     .set({ whitelist: updatedWhitelist })
-    .where(eq(elections.id, id))
+    .where(eq(tables.elections.id, id))
     .returning()
     .get()
 })

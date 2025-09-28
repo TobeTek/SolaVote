@@ -334,8 +334,8 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100 p-8" v-if="!!appKitAccount.address">
-    <div>
+  <div class="min-h-screen bg-gray-900 text-gray-100 p-8">
+    <div v-if="appKitAccount.address">
       <!-- Main Admin View -->
       <div v-if="!selectedElection" class="max-w-6xl mx-auto">
         <div class="flex justify-between items-center mb-8">
@@ -347,6 +347,9 @@ watch(
             <Plus class="h-5 w-5" />
             <span>Create Election</span>
           </UButton>
+        </div>
+        <div v-if="!isLoading.elections && appKitAccount.address" class="flex justify-center py-12">
+          <p class="text-gray-400">You haven't created any elections yet. Create a new election!</p>
         </div>
         <div v-if="isLoading.elections || !appKitAccount.address" class="flex justify-center py-12">
           <p class="text-gray-400">Loading elections...</p>
@@ -581,7 +584,9 @@ watch(
                     <div
                       class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center"
                     >
-                      <span class="text-white font-semibold">{{ candidate.candidate.charAt(0) }}</span>
+                      <span class="text-white font-semibold">{{
+                        candidate.candidate.charAt(0)
+                      }}</span>
                     </div>
                     <div>
                       <h4 class="font-semibold text-white">{{ candidate.candidate }}</h4>
@@ -694,7 +699,7 @@ watch(
                       v-model="newWhitelistAddress"
                       type="text"
                       class="flex-1 bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                      placeholder="0x..."
+                      placeholder="Jns...vDq"
                     />
                     <button
                       @click="addToWhitelist"
@@ -916,6 +921,6 @@ watch(
         </div>
       </div>
     </div>
-    <div>Ensure to kindly connect your wallet!👷🏾</div>
+    <h2 v-else>Kindly connect your wallet!👷🏾</h2>
   </div>
 </template>
