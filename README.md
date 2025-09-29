@@ -58,7 +58,7 @@ The smart contract code is in the `solavote-contracts` directory. Use the `ancho
 
 This is the public key for the deployed SolaVote program on the DevNet:
 
-**Solana Program ID:** [`SoLaVoTe1234567890abcdefghijklmnopqrstuvwx`](https://solscan.io/account/Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6?cluster=devnet)
+**Solana Program ID:** [`Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6`](https://solscan.io/account/Dq6vwtM2ZtcXXJPbWDy6mTCgwJpZ4CKssYQXz1XimMz6?cluster=devnet)
 
 -----
 
@@ -66,7 +66,7 @@ This is the public key for the deployed SolaVote program on the DevNet:
 
 | Resource | URL |
 | :--- | :--- |
-| **Live Project UI URL** | `https://app.solavote.io` |
-| **Pitch Document URL** | `https://docsend.com/solavote-pitch` |
-| **Demo Video URL** | `https://youtu.be/solavote-demo-video` |
-| **Pitch Video URL** | `https://youtu.be/solavote-pitch-video` |
+| **Live Project UI URL** | [`https://sola-vote.tobe-tek.workers.dev/`](https://sola-vote.tobe-tek.workers.dev) |
+| **Pitch Document URL** | [`https://drive.google.com/file/d/1ZDnyij1iCxGWnWDI92lurcmKpW54-vGR/view?usp=sharing`](https://drive.google.com/file/d/1ZDnyij1iCxGWnWDI92lurcmKpW54-vGR/view?usp=sharing) |
+| **Demo Video URL** | [`https://drive.google.com/file/d/1vu3-A8n4MUj8HzNpuvflh5h6rKz9eC7R/view?usp=sharing`](https://drive.google.com/file/d/1vu3-A8n4MUj8HzNpuvflh5h6rKz9eC7R/view?usp=sharing) |
+| **Pitch Video URL** | [`https://drive.google.com/file/d/1o0E8NXIlDJ5ZtajeHwBOp3w3GaLF7YwO/view?usp=sharing`](https://drive.google.com/file/d/1o0E8NXIlDJ5ZtajeHwBOp3w3GaLF7YwO/view?usp=sharing) |
