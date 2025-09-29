@@ -348,7 +348,7 @@ watch(
             <span>Create Election</span>
           </UButton>
         </div>
-        <div v-if="!isLoading.elections && appKitAccount.address" class="flex justify-center py-12">
+        <div v-if="!isLoading.elections && appKitAccount.address && !elections.length" class="flex justify-center py-12">
           <p class="text-gray-400">You haven't created any elections yet. Create a new election!</p>
         </div>
         <div v-if="isLoading.elections || !appKitAccount.address" class="flex justify-center py-12">
